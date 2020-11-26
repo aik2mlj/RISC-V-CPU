@@ -45,19 +45,6 @@ wire ex_reset_enable_i;
 wire wb_reset_enable_i;
 
 
-// Register wires
-wire reg_rs1_enable_i;
-wire reg_rs2_enable_i;
-wire[`RegAddrLen - 1: 0] reg_rs1_addr_i; // ID -> Reg
-wire[`RegAddrLen - 1: 0] reg_rs2_addr_i;
-wire[`RegLen - 1: 0] reg_rs1_data_o; // Reg -> ID
-wire[`RegLen - 1: 0] reg_rs2_data_o;
-
-wire reg_rd_enable_i;
-wire[`RegAddrLen - 1: 0] reg_rd_addr_i;
-wire[`RegLen - 1: 0] reg_rd_data_i;
-
-
 // IF wires
 wire if_jump_enable_i;
 wire[`AddrLen - 1: 0] if_jump_pc_i;
@@ -73,6 +60,10 @@ wire[`InstLen - 1: 0] if_inst_o;
 // ID wires
 wire[`AddrLen - 1: 0] id_next_pc_i;
 wire[`InstLen - 1: 0] id_inst_i;
+
+wire[`RegLen - 1: 0] id_rs1_data_i, id_rs2_data_i;      // Reg -> ID
+wire id_rs1_read_enable_o, id_rs2_read_enable_o;    // ID -> Reg
+wire[`AddrLen - 1: 0] id_rs1_addr_o, id_rs2_addr_o;
 
 wire[`RegLen - 1: 0] id_rs1_data_o, id_rs2_data_o;
 wire[`AluOpLen - 1: 0] id_aluop_o;
@@ -98,11 +89,12 @@ wire ex_rd_write_enable_i;
 wire[`AddrLen - 1: 0] ex_next_pc_i;
 wire[`AddrLen - 1: 0] ex_jump_pc_i;
 
-wire[`RegLen - 1: 0] ex_data_o;
+wire[`RegLen - 1: 0] ex_store_data_o;
 wire ex_load_enable_o;
 wire ex_store_enable_o;
 wire[`AddrLen - 1: 0] ex_load_store_addr_o;
 wire[`Funct3Len - 1: 0] ex_funct3_o;
+wire[`RegLen - 1: 0] ex_rd_data_o;
 wire[`RegAddrLen - 1: 0] ex_rd_addr_o;
 wire ex_rd_write_enable_o;
 
@@ -111,7 +103,8 @@ wire ex_jump_enable_o;
 
 
 // MEM wires
-wire[`RegLen - 1: 0] mem_data_i;
+wire[`RegLen - 1: 0] mem_rd_data_i;
+wire[`RegLen - 1: 0] mem_store_data_i;
 wire mem_load_enable_i;
 wire mem_store_enable_i;
 wire[`AddrLen - 1: 0] mem_load_store_addr_i;
@@ -128,7 +121,7 @@ wire[`ByteLen - 1: 0] mem_load_data_8bit_i;
 wire[`ByteLen - 1: 0] mem_store_data_8bit_o;
 
 wire[`RegLen - 1: 0] mem_rd_data_o;
-wire mem_rd_addr_o;
+wire[`RegAddrLen - 1: 0] mem_rd_addr_o;
 wire mem_rd_write_enable_o;
 
 
@@ -136,6 +129,11 @@ wire mem_rd_write_enable_o;
 wire[`RegLen - 1: 0] wb_rd_data_i;
 wire wb_rd_addr_i;
 wire wb_rd_write_enable_i;
+
+
+// Miscellaneous
+wire last_is_load;
+wire[`RegAddrLen - 1: 0] last_load_rd_addr;
 
 
 // assign mem_a = if_pc_o; // fetch insts TODO: memory-accessing conflicts
@@ -178,16 +176,16 @@ Register register(
     .clk(clk_in),
     .rst(rst_in),
 
-    .rs1_enable_i(reg_rs1_enable_i),
-    .rs2_enable_i(reg_rs2_enable_i),
-    .rs1_addr_i(reg_rs1_addr_i),
-    .rs2_addr_i(reg_rs2_addr_i),
-    .rs1_data_o(reg_rs1_data_o),
-    .rs2_data_o(reg_rs2_data_o),
+    .rs1_enable_i(id_rs1_read_enable_o),
+    .rs2_enable_i(id_rs2_read_enable_o),
+    .rs1_addr_i(id_rs1_addr_o),
+    .rs2_addr_i(id_rs2_addr_o),
+    .rs1_data_o(id_rs1_data_i),
+    .rs2_data_o(id_rs2_data_i),
 
-    .rd_enable_i(reg_rd_enable_i),
-    .rd_addr_i(reg_rd_addr_i),
-    .rd_data_i(reg_rd_data_i)
+    .rd_enable_i(wb_rd_write_enable_i),
+    .rd_addr_i(wb_rd_addr_i),
+    .rd_data_i(wb_rd_data_i)
 );
 
 assign if_jump_enable_i = ex_jump_enable_o | id_jump_enable_o;
@@ -231,19 +229,23 @@ InstDecode inst_decode(
     .next_pc_i(id_next_pc_i),
     .inst_i(id_inst_i),
 
-    // data from Reg
-    .rs1_data_i(reg_rd1_data_o),
-    .rs2_data_i(reg_rd2_data_o),
-
     .stall_req_o(id_stall_req_o),
 
-    // addr to Reg
-    .rs1_read_enable_o(reg_rd1_enable_i),
-    .rs2_read_enable_o(reg_rd2_enable_i),
-    .rs1_addr_o(reg_rd1_addr_i),
-    .rs2_addr_o(reg_rd2_addr_i),
+    // Read after LOAD signal from ID_EX(last inst)
+    .last_is_load_i(last_is_load),
+    .last_load_rd_addr_i(last_load_rd_addr),
 
-    // to ALU
+    // data from Reg
+    .rs1_data_i(id_rs1_data_i),
+    .rs2_data_i(id_rs2_data_i),
+
+    // addr to Reg & ID_EX(forwarding targets)
+    .rs1_read_enable_o(id_rs1_read_enable_o),
+    .rs2_read_enable_o(id_rs2_read_enable_o),
+    .rs1_addr_o(id_rs1_addr_o),
+    .rs2_addr_o(id_rs2_addr_o),
+
+    // to ID_EX
     .rs1_data_o(id_rs1_data_o),
     .rs2_data_o(id_rs2_data_o),
     .aluop_o(id_aluop_o),
@@ -254,6 +256,7 @@ InstDecode inst_decode(
 
     .next_pc_o(id_next_pc_o),
     .jump_pc_o(id_jump_pc_o),
+
     .jump_enable_o(id_jump_enable_o)
 );
 
@@ -264,6 +267,12 @@ ID_EX id_ex(
     .rst(id_ex_rst_i),
     .rdy(rdy_in),
     .stall_enable(ex_stall_enable_i),
+
+    // Forwarding targets from ID
+    .id_rs1_read_enable(id_rs1_read_enable_o),
+    .id_rs2_read_enable(id_rs2_read_enable_o),
+    .id_rs1_addr(id_rs1_addr_o),
+    .id_rs2_addr(id_rs2_addr_o),
 
     .id_rs1_data(id_rs1_data_o),
     .id_rs2_data(id_rs2_data_o),
@@ -276,6 +285,16 @@ ID_EX id_ex(
     .id_next_pc(id_next_pc_o),
     .id_jump_pc(id_jump_pc_o),
 
+    // Forwarding sources from EX
+    .rd_write_enable_ex_fw(ex_rd_write_enable_o),
+    .rd_addr_ex_fw(ex_rd_addr_o),
+    .rd_data_ex_fw(ex_rd_data_o),
+
+    // Forwarding sources from MEM
+    .rd_write_enable_mem_fw(mem_rd_write_enable_o),
+    .rd_addr_mem_fw(mem_rd_addr_o),
+    .rd_data_mem_fw(mem_rd_data_o),
+
     .ex_rs1_data(ex_rs1_data_i),
     .ex_rs2_data(ex_rs2_data_i),
     .ex_aluop(ex_aluop_i),
@@ -285,7 +304,11 @@ ID_EX id_ex(
     .ex_rd_write_enable(ex_rd_write_enable_i),
 
     .ex_next_pc(ex_next_pc_i),
-    .ex_jump_pc(ex_jump_pc_i)
+    .ex_jump_pc(ex_jump_pc_i),
+
+    // LOAD signal
+    .last_is_load(last_is_load),
+    .last_load_rd_addr(last_load_rd_addr)
 );
 
 EX excution(
@@ -300,11 +323,13 @@ EX excution(
     .next_pc_i(ex_next_pc_i),
     .jump_pc_i(ex_jump_pc_i),
 
-    .data_o(ex_data_o),
+    .store_data_o(ex_store_data_o),
     .load_enable_o(ex_load_enable_o),
     .store_enable_o(ex_store_enable_o),
     .load_store_addr_o(ex_load_store_addr_o),
     .funct3_o(ex_funct3_o),
+
+    .rd_data_o(ex_rd_data_o),
     .rd_addr_o(ex_rd_addr_o),
     .rd_write_enable_o(ex_rd_write_enable_o),
 
@@ -317,7 +342,8 @@ EX_MEM ex_mem(
     .rst(rst_in),
     .rdy(rdy_in),
 
-    .ex_data(ex_data_o),
+    .ex_rd_data(ex_rd_data_o),
+    .ex_store_data(ex_store_data_o),
     .ex_load_enable(ex_load_enable_o),
     .ex_store_enable(ex_store_enable_o),
     .ex_load_store_addr(ex_load_store_addr_o),
@@ -325,7 +351,8 @@ EX_MEM ex_mem(
     .ex_rd_addr(ex_rd_addr_o),
     .ex_rd_write_enable(ex_rd_write_enable_o),
 
-    .mem_data(mem_data_i),
+    .mem_rd_data(mem_rd_data_i),
+    .mem_store_data(mem_store_data_i),
     .mem_load_enable(mem_load_enable_i),
     .mem_store_enable(mem_store_enable_i),
     .mem_load_store_addr(mem_load_store_addr_i),
@@ -337,7 +364,8 @@ EX_MEM ex_mem(
 MEM memory_access(
     .rst(rst_in),
 
-    .data_i(mem_data_i),
+    .rd_data_i(mem_rd_data_i),
+    .store_data_i(mem_store_data_i),
     .load_enable_i(mem_load_enable_i),
     .store_enable_i(mem_store_enable_i),
     .load_store_addr_i(mem_load_store_addr_i),
@@ -375,9 +403,6 @@ MEM_WB mem_wb(
 );
 
 
-// simple WB
-assign reg_rd_enable_i = wb_rd_write_enable_i;
-assign reg_rd_addr_i = wb_rd_addr_i;
-assign reg_rd_data_i = wb_rd_data_i;
+// simple WB: wb_xxx connected to registers
 
 endmodule

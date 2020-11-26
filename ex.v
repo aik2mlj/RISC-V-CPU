@@ -11,11 +11,13 @@ module Execute(
     input wire[`AddrLen - 1: 0] jump_pc_i, // pc + imm (AUIPC -> MEM(rd), B_func -> IF)
 
     // to MEM
-    output reg[`RegLen - 1: 0] data_o, // to rd(usually) or mem(STORE_func)
+    output reg[`RegLen - 1: 0] store_data_o, // to RAM
     output reg load_enable_o,
     output reg store_enable_o,
     output reg[`AddrLen - 1: 0] load_store_addr_o,
     output reg[`Funct3Len - 1: 0] funct3_o, // for LOAD/STORE in MEM
+    // to MEM & EX forwarding signals
+    output reg[`RegLen - 1: 0] rd_data_o, // to rd
     output reg[`RegAddrLen - 1: 0] rd_addr_o,
     output reg rd_write_enable_o,
 
@@ -56,7 +58,8 @@ module Execute(
     end
 
     always @(*) begin
-        data_o = `ZERO_WORD;
+        rd_data_o = `ZERO_WORD;
+        store_data_o = `ZERO_WORD;
         load_enable_o = `Disable;
         store_enable_o = `Disable;
         load_store_addr_o = `ZERO_WORD;
@@ -65,16 +68,16 @@ module Execute(
         rd_write_enable_o = rd_write_enable_i;
         case(alusel_i)
             `LUI_IMM: begin // load rd with imm
-                data_o = imm_i;
+                rd_data_o = imm_i;
             end
             `AUIPC_JPC: begin // rd
-                data_o = jump_pc_i;
+                rd_data_o = jump_pc_i;
             end
             `JAL_NPC: begin // rd
-                data_o = next_pc_i;
+                rd_data_o = next_pc_i;
             end
             `JALR_NPC: begin // rd
-                data_o = next_pc_i;
+                rd_data_o = next_pc_i;
             end
             `B_NAN: begin
             end
@@ -84,11 +87,11 @@ module Execute(
             end
             `STORE_RS2_RES: begin // RAM
                 store_enable_o = `Enable;
-                data_o = rs2_data_i;
+                store_data_o = rs2_data_i;
                 load_store_addr_o = res;
             end
             `LOGIC_RES: begin // rd
-                data_o = res;
+                rd_data_o = res;
             end
         endcase
     end

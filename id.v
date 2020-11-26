@@ -4,19 +4,23 @@ module InstDecode(
     input wire[`AddrLen - 1: 0] next_pc_i,
     input wire[`InstLen - 1: 0] inst_i,
 
-    // From registers
+    output reg stall_req_o,
+
+    // Read after LOAD signal from ID_EX(last inst)
+    input wire last_is_load_i,
+    input wire[`RegAddrLen - 1: 0] last_load_rd_addr_i,
+
+    // data From registers
     input wire[`RegLen - 1: 0] rs1_data_i,
     input wire[`RegLen - 1: 0] rs2_data_i,
 
-    output reg stall_req_o,
-
-    // To registers
+    // To registers(data addr) & ID_EX(forwarding targets)
     output reg rs1_read_enable_o,
     output reg rs2_read_enable_o,
     output reg[`RegAddrLen - 1: 0] rs1_addr_o,
     output reg[`RegAddrLen - 1: 0] rs2_addr_o,
 
-    // To ALU
+    // To ID_EX
     output reg[`RegLen - 1: 0] rs1_data_o,
     output reg[`RegLen - 1: 0] rs2_data_o,
     output reg[`AluOpLen - 1: 0] aluop_o,
@@ -27,7 +31,9 @@ module InstDecode(
 
     output reg[`AddrLen - 1: 0] next_pc_o, // pc + 4
     output reg[`AddrLen - 1: 0] jump_pc_o, // pc + imm, to EX and to IF
-    output reg jump_enable_o
+
+    // reset IF_ID & IF use jump_pc
+    output reg jump_enable_o // AUIPC & JAL
 );
     wire[`OpcodeLen - 1: 0] opcode = inst[6: 0];
     reg imm_enable;
@@ -37,7 +43,6 @@ module InstDecode(
         rs2_addr_o = inst_i[24: 20];
         rd_addr_o = inst_i[11: 7];
     end
-
 
     always @(*) begin
         aluop_o = {1'b0, inst_i[14: 12]};
@@ -146,17 +151,37 @@ module InstDecode(
     // Get rs1_data
     always @(*) begin
         if(rs1_read_enable_o) begin
-            rs1_data_o = rs1_data_i;
+            if(rd_write_enable_ex_fw_i && rd_addr_ex_fw_i == rs1_addr_o) // ex forwarding
+                rs1_data_o = rd_data_ex_fw_i;
+            else if(rd_write_enable_mem_fw_i && rd_addr_mem_fw_i == rs1_addr_o) // mem forwarding
+                rs1_data_o = rd_data_mem_fw_i;
+            else rs1_data_o = rs1_data_i;
         end
         else rs1_data_o = `ZERO_WORD;
     end
     // Get rs2_data
     always @(*) begin
         if(rs2_read_enable_o)
-            rs2_data_o = rs2_data_i;
+            if(rd_write_enable_ex_fw_i && rd_addr_ex_fw_i == rs2_addr_o) // ex forwarding
+                rs2_data_o = rd_data_ex_fw_i;
+            else if(rd_write_enable_mem_fw_i && rd_addr_mem_fw_i == rs2_addr_o) // mem forwarding
+                rs2_data_o = rd_data_mem_fw_i;
+            else rs2_data_o = rs2_data_i;
         else if(!imm_enable)
             rs2_data_o = imm_o; // If imm is disabled, rs2 = imm. (More convenient in EX)
         else rs2_data_o = `ZERO_WORD;
+    end
+
+    // Read after LOAD STALL
+    always @(*) begin
+        if(last_is_load_i) begin
+            if(rs1_read_enable_o && last_load_rd_addr_i == rs1_addr_o)
+                stall_req_o = `Enable;
+            else if(rs2_read_enable_o && last_load_rd_addr_i == rs2_addr_o)
+                stall_req_o = `Enable;
+            else stall_req_o = `Disable;
+        end
+        else stall_req_o = `Disable;
     end
 
 endmodule
