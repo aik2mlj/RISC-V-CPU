@@ -13,12 +13,12 @@ module Register(
     input wire[`RegAddrLen - 1: 0] rd_addr_i,
     input wire[`RegLen - 1: 0] rd_data_i
 );
-    reg[`RegLen - 1: 0] regs[0 : `RegNum - 1];
+    reg[`RegLen - 1: 0] regs[0: `RegNum - 1];
 
     // rst
     always @(posedge clk) begin
         if(rst) begin
-            for (int i = 0; i < `RegNum; i = i + 1) begin
+            for (integer i = 0; i < `RegNum; i = i + 1) begin
                 regs[i] <= `ZERO_WORD;
             end
         end
@@ -68,5 +68,7 @@ module Register(
             end
         end
     end
+
+    // assign dbgregs_o = regs;
 
 endmodule

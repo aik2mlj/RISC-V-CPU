@@ -84,7 +84,7 @@
 `define NOP_ALUOP   4'b0000 // ADD
 
 `define ADD     4'b0000
-`define STORE_ADDI    4'b1111 // used for rs1 + imm in STORE
+`define STORE_ADDI  4'b1111 // used for rs1 + imm in STORE
 `define SUB     4'b1000
 `define SLL     4'b0001
 `define SLT     4'b0010
@@ -113,8 +113,13 @@
 `define SH      3'b001
 `define SW      3'b010
 
+// MEMCTRL
+`define LSB     2'b00
+`define LSH     2'b01
+`define LSW     2'b10
+
 `define AluSelLen   3
-`define NOP_ALUSEL      3'b101 // LOGIC_RES
+`define NOP_ALUSEL      3'b111 // LOGIC_RES
 
 `define LUI_IMM         3'b000
 `define JAL_NPC         3'b001

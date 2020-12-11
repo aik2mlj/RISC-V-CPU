@@ -1,8 +1,9 @@
-module Execute(
+module Execution(
     input wire[`RegLen - 1: 0] rs1_data_i,
     input wire[`RegLen - 1: 0] rs2_data_i,
     input wire[`AluOpLen - 1: 0] aluop_i,
     input wire[`AluSelLen - 1: 0] alusel_i,
+    input wire[`Funct3Len - 1: 0] funct3_i,
     input wire[`RegLen - 1: 0] imm_i,
     input wire[`RegAddrLen - 1: 0] rd_addr_i,
     input wire rd_write_enable_i,
@@ -63,7 +64,7 @@ module Execute(
         load_enable_o = `Disable;
         store_enable_o = `Disable;
         load_store_addr_o = `ZERO_WORD;
-        funct3_o = aluop_i[`Funct3Len - 1: 0];
+        funct3_o = funct3_i;
         rd_addr_o = rd_addr_i;
         rd_write_enable_o = rd_write_enable_i;
         case(alusel_i)
