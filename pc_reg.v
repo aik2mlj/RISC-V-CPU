@@ -7,13 +7,13 @@ module PCReg(
     input wire jump_enable_i,
     input wire[`AddrLen - 1: 0] jump_pc_i,
 
-    // from MEMCTRL
+    // from IF
     input wire pc_plus4_ready_i,
     input wire inst_ready_i,
 
-    // to MEMCTRL
+    // to IF
     output reg pc_enable_o,
-    output reg[`AddrLen - 1: 0] pc_o, // also to IF
+    output reg[`AddrLen - 1: 0] pc_o,
     output reg pc_jump_enable_o
 );
     // pc enable

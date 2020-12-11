@@ -12,18 +12,18 @@ module MemCtrl(
     // to IF/MEM
     output reg memctrl_off_o,
 
-    // from/to PCReg
+    // from IF
     input wire if_pc_enable_i,
     input wire[`AddrLen - 1: 0] if_pc_i,
     input wire if_pc_jump_enable_i,
-    output reg if_pc_plus4_ready_o,
-    // to PCReg/IF
-    output reg if_inst_ready_o,
     // to IF
+    output reg if_pc_plus4_ready_o,
+    output reg if_inst_ready_o,
     output reg[`RegLen - 1: 0] if_inst_o,
 
     input wire id_stall_req_i, // for Read after LOAD stall
-    output reg id_stall_req_resume_o, // same port, id_stall_req_resume_o = 0 after LOAD is ready
+    // to ID
+    output reg id_stall_req_resume_o, // Enabled after LOAD is ready
 
     // from MEM
     input wire mem_wr_enable_i,

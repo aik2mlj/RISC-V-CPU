@@ -43,18 +43,24 @@ wire wb_stall_enable_i;
 
 
 // -------------------- PCReg wires --------------------
-wire if_pc_plus4_ready_i;
+wire pcreg_jump_enable_i;
+wire[`AddrLen - 1: 0] pcreg_jump_pc_i;
 
-wire if_jump_enable_i;
-wire[`AddrLen - 1: 0] if_jump_pc_i;
+// -------------------- IF wires --------------------
+wire if_pc_enable_i;
+wire[`AddrLen - 1: 0] if_pc_i;
+wire if_pc_jump_enable_i;
 
 wire if_pc_enable_o;
 wire[`AddrLen - 1: 0] if_pc_o;
 wire if_pc_jump_enable_o;
 
-// -------------------- IF wires --------------------
+wire if_pc_plus4_ready_i;
 wire if_inst_ready_i;
 wire[`RegLen - 1: 0] if_inst_i;
+
+wire if_pc_plus4_ready_o;
+wire if_inst_ready_o;
 
 wire[`AddrLen - 1: 0] if_next_pc_o;
 wire[`InstLen - 1: 0] if_inst_o;
@@ -155,10 +161,9 @@ MemCtrl memctrl(
     .if_pc_enable_i(if_pc_enable_o),
     .if_pc_i(if_pc_o),
     .if_pc_jump_enable_i(if_pc_jump_enable_o),
+
     .if_pc_plus4_ready_o(if_pc_plus4_ready_i),
-
     .if_inst_ready_o(if_inst_ready_i),
-
     .if_inst_o(if_inst_i),
 
     .id_stall_req_i(id_stall_req_o),
@@ -202,34 +207,44 @@ Register register(
     .rd_data_i(wb_rd_data_i)
 );
 
-assign if_jump_enable_i = ex_jump_enable_o | id_jump_enable_o;
-assign if_jump_pc_i = (ex_jump_enable_o)? ex_jump_pc_o: id_jump_pc_o; // B_func taken/JALR: ex_jump; JAL/JALR: id_jump
+assign pcreg_jump_enable_i = ex_jump_enable_o | id_jump_enable_o;
+assign pcreg_jump_pc_i = (ex_jump_enable_o)? ex_jump_pc_o: id_jump_pc_o; // B_func taken/JALR: ex_jump; JAL/JALR: id_jump
 
 PCReg pc_reg(
     .clk(clk_in),
     .rst(rst_in),
     .rdy(rdy_in),
     .stall_enable(if_stall_enable_i),
-    .pc_plus4_ready_i(if_pc_plus4_ready_i),
-    .inst_ready_i(if_inst_ready_i),
 
-    .jump_enable_i(if_jump_enable_i),
-    .jump_pc_i(if_jump_pc_i),
+    .jump_enable_i(pcreg_jump_enable_i),
+    .jump_pc_i(pcreg_jump_pc_i),
 
-    .pc_enable_o(if_pc_enable_o),
-    .pc_o(if_pc_o),
-    .pc_jump_enable_o(if_pc_jump_enable_o)
+    .pc_plus4_ready_i(if_pc_plus4_ready_o),
+    .inst_ready_i(if_inst_ready_o),
+
+    .pc_enable_o(if_pc_enable_i),
+    .pc_o(if_pc_i),
+    .pc_jump_enable_o(if_pc_jump_enable_i)
 );
 
 InstFetch inst_fetch(
     .stall_req_o(if_stall_req_o),
 
-    .pc_i(if_pc_o),
+    .pc_enable_i(if_pc_enable_i),
+    .pc_i(if_pc_i),
+    .pc_jump_enable_i(if_pc_jump_enable_i),
+
+    .pc_enable_o(if_pc_enable_o),
+    .pc_o(if_pc_o),
+    .pc_jump_enable_o(if_pc_jump_enable_o),
 
     .memctrl_off_i(memctrl_off),
-
+    .pc_plus4_ready_i(if_pc_plus4_ready_i),
     .inst_ready_i(if_inst_ready_i),
     .inst_i(if_inst_i),
+
+    .pc_plus4_ready_o(if_pc_plus4_ready_o),
+    .inst_ready_o(if_inst_ready_o),
 
     .next_pc_o(if_next_pc_o),
     .inst_o(if_inst_o)
