@@ -230,6 +230,9 @@ PCReg pc_reg(
 );
 
 InstFetch inst_fetch(
+    .clk(clk_in),
+    .rst(rst_in),
+
     .stall_req_o(if_stall_req_o),
 
     .pc_enable_i(if_pc_enable_i),

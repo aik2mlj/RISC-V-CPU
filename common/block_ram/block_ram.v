@@ -91,7 +91,7 @@ initial begin
     ram[i] = 0;
   end
   // $readmemh("/mnt/c/Users/ASUS/Desktop/Learn/acm/testcase/testsleep/test.data", ram); // add test.data to vivado project or specify a valid file path
-  $readmemh("C:\\Users\\ASUS\\Desktop\\Learn\\acm\\testcase\\testsleep\\test.data", ram); // add test.data to vivado project or specify a valid file path
+  $readmemh("C:\\Users\\ASUS\\Desktop\\Learn\\acm\\testcase\\lvalue2\\test.data", ram); // add test.data to vivado project or specify a valid file path
   // $readmemh("C:\\Users\\ASUS\\Desktop\\Learn\\acm\\MS108-2020-master\\riscv\\test\\test.data", ram); // add test.data to vivado project or specify a valid file path
   // $readmemh("/mnt/c/Users/ASUS/Desktop/Learn/acm/MS108-2020-master/riscv/test/test.data", ram); // add test.data to vivado project or specify a valid file path
 end
