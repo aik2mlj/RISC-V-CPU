@@ -17,10 +17,12 @@ module Execution(
     output reg store_enable_o,
     output reg[`AddrLen - 1: 0] load_store_addr_o,
     output reg[`Funct3Len - 1: 0] funct3_o, // for LOAD/STORE in MEM
+    output reg rd_write_enable_o,
     // to MEM & EX forwarding signals
     output reg[`RegLen - 1: 0] rd_data_o, // to rd
     output reg[`RegAddrLen - 1: 0] rd_addr_o,
-    output reg rd_write_enable_o,
+    // EX forwarding signal
+    output reg rd_ready_o,
 
     // to IF
     output reg[`AddrLen - 1: 0] jump_pc_o, // to IF (B_func: pc + imm, JALR: rs1 + imm)
@@ -34,12 +36,12 @@ module Execution(
             `ADD:   res = rs1_data_i + rs2_data_i;
             `STORE_ADDI: res = rs1_data_i + imm_i;
             `SUB:   res = rs1_data_i - rs2_data_i;
-            `SLL:   res = rs1_data_i << (rs2_data_i & 5'b11111);
+            `SLL:   res = rs1_data_i << (rs2_data_i[4: 0]);
             `SLT:   res = {{(`RegLen - 1){1'b0}}, ($signed(rs1_data_i) < $signed(rs2_data_i))};
             `SLTU:  res = {{(`RegLen - 1){1'b0}}, (rs1_data_i < rs2_data_i)};
             `XOR:   res = rs1_data_i ^ rs2_data_i;
-            `SRL:   res = rs1_data_i >> (rs2_data_i & 5'b11111); // logic right shift
-            `SRA:   res = $signed(rs1_data_i) >>> (rs2_data_i & 5'b11111); // arithmetic right shift
+            `SRL:   res = rs1_data_i >> (rs2_data_i[4: 0]); // logic right shift
+            `SRA:   res = (rs1_data_i >> (rs2_data_i[4: 0])) | ({32{rs1_data_i[31]}} << (6'd32 - {1'b0, rs2_data_i[4: 0]})); // arithmetic right shift
             `OR:    res = rs1_data_i | rs2_data_i;
             `AND:   res = rs1_data_i & rs2_data_i;
             default:res = `ZERO_WORD;
@@ -66,7 +68,8 @@ module Execution(
         load_store_addr_o = `ZERO_WORD;
         funct3_o = funct3_i;
         rd_addr_o = rd_addr_i;
-        rd_write_enable_o = rd_write_enable_i;
+        rd_write_enable_o = (rd_write_enable_i && rd_addr_i);
+        rd_ready_o = rd_write_enable_o;
         case(alusel_i)
             `LUI_IMM: begin // load rd with imm
                 rd_data_o = imm_i;
@@ -85,6 +88,7 @@ module Execution(
             `LOAD__RES: begin // rd
                 load_enable_o = `Enable;
                 load_store_addr_o = res;
+                rd_ready_o = `Disable;  // ready: LOAD is not ready
             end
             `STORE_RS2_RES: begin // RAM
                 store_enable_o = `Enable;

@@ -13,11 +13,11 @@ module MemCtrl(
     output reg memctrl_off_o,
 
     // from IF
-    input wire if_pc_enable_i,
+    input wire if_from_ram_enable_i,
     input wire[`AddrLen - 1: 0] if_pc_i,
     input wire if_pc_jump_enable_i,
     // to IF
-    output reg if_pc_plus4_ready_o,
+    output reg is_if_output_o,
     output reg if_inst_ready_o,
     output reg[`RegLen - 1: 0] if_inst_o,
 
@@ -34,6 +34,7 @@ module MemCtrl(
     input wire[`RegLen - 1: 0] store_data_i,
 
     // to MEM
+    output reg is_mem_output_o,
     output reg load_store_ready_o,
     output reg[`RegLen - 1: 0] load_data_o
 );
@@ -57,8 +58,9 @@ module MemCtrl(
         else begin
             case(state)
                 OFF: begin
-                    if(mem_wr_enable_i) next_state = RW0;
-                    else if(if_pc_enable_i) next_state = RW0;
+                    if(output_state != NOout) next_state = OFF;
+                    else if(mem_wr_enable_i) next_state = RW0;
+                    else if(if_from_ram_enable_i) next_state = RW0;
                     else next_state = OFF;
                 end
 
@@ -101,8 +103,9 @@ module MemCtrl(
     always @(*) begin
         case(state)
             OFF: begin
-                if(mem_wr_enable_i) next_output_state = mem_wr_i? STOREout: LOADout;
-                else if(if_pc_enable_i) next_output_state = IFout;
+                if(output_state != NOout) next_output_state = NOout;
+                else if(mem_wr_enable_i) next_output_state = mem_wr_i? STOREout: LOADout;
+                else if(if_from_ram_enable_i) next_output_state = IFout;
                 else next_output_state = NOout;
             end
 
@@ -119,13 +122,21 @@ module MemCtrl(
             case(state)
                 OFF: begin
                     if(mem_wr_enable_i) next_addr = load_store_addr_i;
-                    else if(if_pc_enable_i) next_addr = if_pc_i;
+                    else if(if_from_ram_enable_i) next_addr = if_pc_i;
                     else next_addr = `ZERO_WORD;
                 end
 
                 default: next_addr = current_addr + 1;
             endcase
         end
+    end
+
+    // output state to IF/MEM
+    always @(*) begin
+        is_if_output_o = `False;
+        is_mem_output_o = `False;
+        if(output_state == IFout || output_state == NOout) is_if_output_o = `True;
+        if(output_state != IFout) is_mem_output_o = `True;
     end
 
 // ---------------- state flip-flops --------------------
@@ -201,25 +212,12 @@ module MemCtrl(
         else memctrl_off_o <= `True;
     end
 
-    // PCReg + 4 enable: at RW4 of IFout
-    always @(posedge clk) begin
-        if(!rst) begin
-            if(rdy) begin
-                if(!id_stall_req_i && next_state == RW4 && next_output_state == IFout) if_pc_plus4_ready_o <= `Enable;
-                else if(id_stall_req_i && next_output_state == LOADout && next_state == OFF)
-                    if_pc_plus4_ready_o <= `Enable; // right after LOAD is finished(id stall caused by Read after LOAD) (1st OFF)
-                else if_pc_plus4_ready_o <= `Disable;
-            end
-        end
-        else if_pc_plus4_ready_o <= `Disable;
-    end
-
     // resume ex/id/if when LOAD is ready (id stall caused by Read after LOAD)
     always @(posedge clk) begin
         if(!rst) begin
             if(rdy) begin
-                if(id_stall_req_i && next_output_state == NOout && next_output_state == OFF)
-                    id_stall_req_resume_o <= `Enable; // after pc+=4 (2nd OFF)
+                if(id_stall_req_i && next_output_state == LOADout && next_state == OFF)
+                    id_stall_req_resume_o <= `Enable;
                 else id_stall_req_resume_o <= `Disable;
             end
         end
@@ -233,7 +231,7 @@ module MemCtrl(
                 load_store_ready_o <= `Disable;
                 if_inst_ready_o <= `Disable;
                 if(next_state == OFF) begin
-                    if(output_state == LOADout || output_state == STOREout) // output_state is old value here
+                    if(next_output_state == LOADout || next_output_state == STOREout)
                         load_store_ready_o <= `Enable;
                     else if(next_output_state == IFout)
                         if_inst_ready_o <= `Enable;

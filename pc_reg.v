@@ -8,7 +8,6 @@ module PCReg(
     input wire[`AddrLen - 1: 0] jump_pc_i,
 
     // from IF
-    input wire pc_plus4_ready_i,
     input wire inst_ready_i,
 
     // to IF
@@ -19,8 +18,7 @@ module PCReg(
     // pc enable
     always @(posedge clk) begin
         if(!rst) begin
-            if(!stall_enable || pc_plus4_ready_i) pc_enable_o <= `Enable;
-            else pc_enable_o <= `Disable; // pc stalled because of Read after LOAD: temporarily disable pc
+            if(rdy && !stall_enable) pc_enable_o <= `Enable;
         end
         else pc_enable_o <= `Disable;
     end
@@ -29,12 +27,11 @@ module PCReg(
         if(!rst) begin
             if(rdy) begin
                 pc_jump_enable_o <= `Disable;
-                if(pc_plus4_ready_i)
-                    pc_o <= pc_o + 4;
-                else if(jump_enable_i && !inst_ready_i) begin
+                if(jump_enable_i && !inst_ready_i) begin
                     pc_jump_enable_o <= `Enable;
                     pc_o <= jump_pc_i; // JUMP!
                 end
+                else if(!stall_enable && inst_ready_i) pc_o <= pc_o + 4; // if stalled, do not add pc
             end
         end
         else begin

@@ -11,14 +11,17 @@ module Register(
 
     input wire rd_enable_i,
     input wire[`RegAddrLen - 1: 0] rd_addr_i,
-    input wire[`RegLen - 1: 0] rd_data_i
+    input wire[`RegLen - 1: 0] rd_data_i,
+
+    output reg[`RegLen - 1: 0] dbgregs_o
 );
     reg[`RegLen - 1: 0] regs[0: `RegNum - 1];
 
     // rst
+    integer i;
     always @(posedge clk) begin
         if(rst) begin
-            for (integer i = 0; i < `RegNum; i = i + 1) begin
+            for (i = 0; i < `RegNum; i = i + 1) begin
                 regs[i] <= `ZERO_WORD;
             end
         end
@@ -61,14 +64,13 @@ module Register(
     end
 
     // write FIXME: sequential or combinational?
-    always @(*) begin
+    always @(posedge clk) begin
         if(!rst && rd_enable_i) begin
             if(rd_addr_i != `X0)  begin
-                regs[rd_addr_i] = rd_data_i;
+                regs[rd_addr_i] <= rd_data_i;
+                dbgregs_o <= rd_data_i;
             end
         end
     end
-
-    // assign dbgregs_o = regs;
 
 endmodule

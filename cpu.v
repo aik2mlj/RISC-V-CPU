@@ -51,15 +51,13 @@ wire if_pc_enable_i;
 wire[`AddrLen - 1: 0] if_pc_i;
 wire if_pc_jump_enable_i;
 
-wire if_pc_enable_o;
+wire if_from_ram_enable_o;
 wire[`AddrLen - 1: 0] if_pc_o;
 wire if_pc_jump_enable_o;
 
-wire if_pc_plus4_ready_i;
 wire if_inst_ready_i;
 wire[`RegLen - 1: 0] if_inst_i;
 
-wire if_pc_plus4_ready_o;
 wire if_inst_ready_o;
 
 wire[`AddrLen - 1: 0] if_next_pc_o;
@@ -106,6 +104,7 @@ wire[`Funct3Len - 1: 0] ex_funct3_o;
 wire[`RegLen - 1: 0] ex_rd_data_o;
 wire[`RegAddrLen - 1: 0] ex_rd_addr_o;
 wire ex_rd_write_enable_o;
+wire ex_rd_ready_o;
 
 wire[`AddrLen - 1: 0] ex_jump_pc_o;
 wire ex_jump_enable_o;
@@ -141,7 +140,8 @@ wire wb_rd_write_enable_i;
 wire last_is_load;
 wire[`RegAddrLen - 1: 0] last_load_rd_addr;
 
-wire memctrl_off;
+wire is_if_output;
+wire is_mem_output;
 
 wire id_stall_req_resume;
 
@@ -158,11 +158,11 @@ MemCtrl memctrl(
 
     .memctrl_off_o(memctrl_off), // TODO: rewrite?
 
-    .if_pc_enable_i(if_pc_enable_o),
+    .if_from_ram_enable_i(if_from_ram_enable_o),
     .if_pc_i(if_pc_o),
     .if_pc_jump_enable_i(if_pc_jump_enable_o),
 
-    .if_pc_plus4_ready_o(if_pc_plus4_ready_i),
+    .is_if_output_o(is_if_output),
     .if_inst_ready_o(if_inst_ready_i),
     .if_inst_o(if_inst_i),
 
@@ -175,6 +175,7 @@ MemCtrl memctrl(
     .load_store_type_i(mem_load_store_type_i),
     .store_data_i(mem_store_data_i),
 
+    .is_mem_output_o(is_mem_output),
     .load_store_ready_o(mem_load_store_ready_i),
     .load_data_o(mem_load_data_i)
 );
@@ -204,7 +205,9 @@ Register register(
 
     .rd_enable_i(wb_rd_write_enable_i),
     .rd_addr_i(wb_rd_addr_i),
-    .rd_data_i(wb_rd_data_i)
+    .rd_data_i(wb_rd_data_i),
+
+    .dbgregs_o(dbgreg_dout)
 );
 
 assign pcreg_jump_enable_i = ex_jump_enable_o | id_jump_enable_o;
@@ -219,7 +222,6 @@ PCReg pc_reg(
     .jump_enable_i(pcreg_jump_enable_i),
     .jump_pc_i(pcreg_jump_pc_i),
 
-    .pc_plus4_ready_i(if_pc_plus4_ready_o),
     .inst_ready_i(if_inst_ready_o),
 
     .pc_enable_o(if_pc_enable_i),
@@ -234,16 +236,14 @@ InstFetch inst_fetch(
     .pc_i(if_pc_i),
     .pc_jump_enable_i(if_pc_jump_enable_i),
 
-    .pc_enable_o(if_pc_enable_o),
+    .if_from_ram_enable_o(if_from_ram_enable_o),
     .pc_o(if_pc_o),
     .pc_jump_enable_o(if_pc_jump_enable_o),
 
-    .memctrl_off_i(memctrl_off),
-    .pc_plus4_ready_i(if_pc_plus4_ready_i),
+    .is_if_output_i(is_if_output),
     .inst_ready_i(if_inst_ready_i),
     .inst_i(if_inst_i),
 
-    .pc_plus4_ready_o(if_pc_plus4_ready_o),
     .inst_ready_o(if_inst_ready_o),
 
     .next_pc_o(if_next_pc_o),
@@ -281,11 +281,21 @@ InstDecode inst_decode(
     .rs1_data_i(id_rs1_data_i),
     .rs2_data_i(id_rs2_data_i),
 
-    // addr to Reg & ID_EX(forwarding targets)
+    // addr to Reg
     .rs1_read_enable_o(id_rs1_read_enable_o),
     .rs2_read_enable_o(id_rs2_read_enable_o),
     .rs1_addr_o(id_rs1_addr_o),
     .rs2_addr_o(id_rs2_addr_o),
+
+    // Forwarding sources from EX
+    .rd_ready_ex_fw_i(ex_rd_ready_o), // ready: LOAD is not ready
+    .rd_addr_ex_fw_i(ex_rd_addr_o),
+    .rd_data_ex_fw_i(ex_rd_data_o),
+
+    // Forwarding sources from MEM
+    .rd_ready_mem_fw_i(mem_rd_write_enable_o),
+    .rd_addr_mem_fw_i(mem_rd_addr_o),
+    .rd_data_mem_fw_i(mem_rd_data_o),
 
     // to ID_EX
     .rs1_data_o(id_rs1_data_o),
@@ -303,19 +313,15 @@ InstDecode inst_decode(
     .jump_enable_o(id_jump_enable_o)
 );
 
-wire id_ex_rst_i = rst_in | ex_jump_enable_o; // B_func taken/JALR detected in EX: reset ID_EX(NOP)
+wire id_ex_jump_rst = ex_jump_enable_o; // FIXME:
+// B_func taken/JALR detected in EX | Read after LOAD stall: reset ID_EX(NOP)
 
 ID_EX id_ex(
     .clk(clk_in),
-    .rst(id_ex_rst_i),
+    .rst(rst_in),
     .rdy(rdy_in),
     .stall_enable(ex_stall_enable_i),
-
-    // Forwarding targets from ID
-    .id_rs1_read_enable(id_rs1_read_enable_o),
-    .id_rs2_read_enable(id_rs2_read_enable_o),
-    .id_rs1_addr(id_rs1_addr_o),
-    .id_rs2_addr(id_rs2_addr_o),
+    .jump_rst(id_ex_jump_rst),
 
     .id_rs1_data(id_rs1_data_o),
     .id_rs2_data(id_rs2_data_o),
@@ -328,16 +334,6 @@ ID_EX id_ex(
 
     .id_next_pc(id_next_pc_o),
     .id_jump_pc(id_jump_pc_o),
-
-    // Forwarding sources from EX
-    .rd_write_enable_ex_fw(ex_rd_write_enable_o),
-    .rd_addr_ex_fw(ex_rd_addr_o),
-    .rd_data_ex_fw(ex_rd_data_o),
-
-    // Forwarding sources from MEM
-    .rd_write_enable_mem_fw(mem_rd_write_enable_o),
-    .rd_addr_mem_fw(mem_rd_addr_o),
-    .rd_data_mem_fw(mem_rd_data_o),
 
     .ex_rs1_data(ex_rs1_data_i),
     .ex_rs2_data(ex_rs2_data_i),
@@ -375,17 +371,20 @@ Execution excution(
     .load_store_addr_o(ex_load_store_addr_o),
     .funct3_o(ex_funct3_o),
 
+    .rd_write_enable_o(ex_rd_write_enable_o),
     .rd_data_o(ex_rd_data_o),
     .rd_addr_o(ex_rd_addr_o),
-    .rd_write_enable_o(ex_rd_write_enable_o),
+    .rd_ready_o(ex_rd_ready_o),
 
     .jump_pc_o(ex_jump_pc_o),
     .jump_enable_o(ex_jump_enable_o)
 );
 
+wire ex_mem_rst_i = rst_in | id_stall_req_resume;
+
 EX_MEM ex_mem(
     .clk(clk_in),
-    .rst(rst_in),
+    .rst(ex_mem_rst_i),
     .rdy(rdy_in),
     .stall_enable(mem_stall_enable_i),
 
@@ -424,8 +423,7 @@ MemoryAccess memory_access(
     .wr_enable_o(mem_wr_enable_o),
     .wr_o(mem_wr_o),
 
-    .memctrl_off_i(memctrl_off),
-
+    .is_mem_output_i(is_mem_output),
     .load_store_ready_i(mem_load_store_ready_i),
     .load_data_i(mem_load_data_i),
 

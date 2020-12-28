@@ -13,7 +13,7 @@ module MemoryAccess(
     output reg wr_enable_o,
     output reg wr_o,
     // from MEMCTRL
-    input wire memctrl_off_i,
+    input wire is_mem_output_i,
     input wire load_store_ready_i,
     input wire[`RegLen - 1: 0] load_data_i,
 
@@ -68,8 +68,8 @@ module MemoryAccess(
     end
 
     always @(*) begin
-        if(wr_enable_i) begin
-            stall_req_o = ~memctrl_off_i;
+        if(wr_enable_i && is_mem_output_i) begin
+            stall_req_o = ~load_store_ready_i;
         end
         else stall_req_o = `Disable;
     end

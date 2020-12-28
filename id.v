@@ -16,12 +16,21 @@ module InstDecode(
     // data From registers
     input wire[`RegLen - 1: 0] rs1_data_i,
     input wire[`RegLen - 1: 0] rs2_data_i,
-
-    // To registers(data addr) & ID_EX(forwarding targets)
+    // To registers(data addr)
     output reg rs1_read_enable_o,
     output reg rs2_read_enable_o,
     output reg[`RegAddrLen - 1: 0] rs1_addr_o,
     output reg[`RegAddrLen - 1: 0] rs2_addr_o,
+
+    // Forwarding sources from EX
+    input wire rd_ready_ex_fw_i,
+    input wire[`RegAddrLen - 1: 0] rd_addr_ex_fw_i,
+    input wire[`RegLen - 1: 0] rd_data_ex_fw_i,
+
+    // Forwarding sources from MEM
+    input wire rd_ready_mem_fw_i,
+    input wire[`RegAddrLen - 1: 0] rd_addr_mem_fw_i,
+    input wire[`RegLen - 1: 0] rd_data_mem_fw_i,
 
     // To ID_EX
     output reg[`RegLen - 1: 0] rs1_data_o,
@@ -151,21 +160,30 @@ module InstDecode(
 
     // calculate pc + imm for AUIPC, JAL, Branch
     always @(*) begin
-        next_pc_o = next_pc_i;
-        jump_pc_o = next_pc_i + imm_o - 4;
+        next_pc_o = next_pc_i + 4;
+        jump_pc_o = next_pc_i + imm_o;
     end
 
     // Get rs1_data
     always @(*) begin
         if(rs1_read_enable_o) begin
-            rs1_data_o = rs1_data_i;
+            if(rd_ready_ex_fw_i && rs1_addr_o == rd_addr_ex_fw_i) // Forwarding
+                rs1_data_o = rd_data_ex_fw_i;
+            else if(rd_ready_mem_fw_i && rs1_addr_o == rd_addr_mem_fw_i)
+                rs1_data_o = rd_data_mem_fw_i;
+            else rs1_data_o = rs1_data_i;
         end
         else rs1_data_o = `ZERO_WORD;
     end
     // Get rs2_data
     always @(*) begin
-        if(rs2_read_enable_o)
-            rs2_data_o = rs2_data_i;
+        if(rs2_read_enable_o) begin
+            if(rd_ready_ex_fw_i && rs2_addr_o == rd_addr_ex_fw_i) // Forwarding
+                rs2_data_o = rd_data_ex_fw_i;
+            else if(rd_ready_mem_fw_i && rs2_addr_o == rd_addr_mem_fw_i)
+                rs2_data_o = rd_data_mem_fw_i;
+            else rs2_data_o = rs2_data_i;
+        end
         else if(imm_enable)
             rs2_data_o = imm_o; // If imm is enabled, rs2 = imm. (More convenient in EX)
         else rs2_data_o = `ZERO_WORD;

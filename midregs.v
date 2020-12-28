@@ -29,12 +29,7 @@ module ID_EX(
     input wire rst,
     input wire rdy,
     input wire stall_enable,
-
-    // Forwarding targets from ID
-    input wire id_rs1_read_enable,
-    input wire id_rs2_read_enable,
-    input wire[`RegAddrLen - 1: 0] id_rs1_addr,
-    input wire[`RegAddrLen - 1: 0] id_rs2_addr,
+    input wire jump_rst,
 
     // from ID
     input wire[`RegLen - 1: 0] id_rs1_data,
@@ -48,16 +43,6 @@ module ID_EX(
 
     input wire[`AddrLen - 1: 0] id_next_pc,
     input wire[`AddrLen - 1: 0] id_jump_pc,
-
-    // Forwarding sources from EX
-    input wire rd_write_enable_ex_fw,
-    input wire[`RegAddrLen - 1: 0] rd_addr_ex_fw,
-    input wire[`RegLen - 1: 0] rd_data_ex_fw,
-
-    // Forwarding sources from MEM
-    input wire rd_write_enable_mem_fw,
-    input wire[`RegAddrLen - 1: 0] rd_addr_mem_fw,
-    input wire[`RegLen - 1: 0] rd_data_mem_fw,
 
     // to EX
     output reg[`RegLen - 1: 0] ex_rs1_data,
@@ -79,44 +64,45 @@ module ID_EX(
     always @(posedge clk) begin
         if(!rst) begin
             if(rdy && !stall_enable) begin
-                ex_aluop <= id_aluop;
-                ex_alusel <= id_alusel;
-                ex_funct3 <= id_funct3;
-                ex_imm <= id_imm;
-                ex_rd_addr <= id_rd_addr;
-                ex_rd_write_enable <= id_rd_write_enable;
-                ex_next_pc <= id_next_pc;
-                ex_jump_pc <= id_jump_pc;
+                if(jump_rst) begin // stall unlock & jump rst
+                    // NOP
+                    ex_rs1_data <= `ZERO_WORD;
+                    ex_rs2_data <= `ZERO_WORD;
+                    ex_aluop <= `NOP_ALUOP;
+                    ex_alusel <= `NOP_ALUSEL;
+                    ex_funct3 <= `NFunct3;
+                    ex_imm <= `ZERO_WORD;
+                    ex_rd_addr <= `ZERO_WORD;
+                    ex_rd_write_enable <= `Disable;
+                    ex_next_pc <= `ZERO_WORD;
+                    ex_jump_pc <= `ZERO_WORD;
+                end
+                else begin
+                    ex_rs1_data <= id_rs1_data;
+                    ex_rs2_data <= id_rs2_data;
+                    ex_aluop <= id_aluop;
+                    ex_alusel <= id_alusel;
+                    ex_funct3 <= id_funct3;
+                    ex_imm <= id_imm;
+                    ex_rd_addr <= id_rd_addr;
+                    ex_rd_write_enable <= id_rd_write_enable;
+                    ex_next_pc <= id_next_pc;
+                    ex_jump_pc <= id_jump_pc;
+                end
             end
         end
         else begin
             // NOP
+            ex_rs1_data <= `ZERO_WORD;
+            ex_rs2_data <= `ZERO_WORD;
             ex_aluop <= `NOP_ALUOP;
             ex_alusel <= `NOP_ALUSEL;
             ex_funct3 <= `NFunct3;
             ex_imm <= `ZERO_WORD;
             ex_rd_addr <= `ZERO_WORD;
-            ex_rd_write_enable <= `Enable;
+            ex_rd_write_enable <= `Disable;
             ex_next_pc <= `ZERO_WORD;
             ex_jump_pc <= `ZERO_WORD;
-        end
-    end
-
-    // Forwarding completed
-    always @(posedge clk) begin
-        if(!rst) begin
-            if(rdy && !stall_enable) begin
-                if(id_rs1_read_enable && rd_write_enable_ex_fw && rd_addr_ex_fw == id_rs1_addr)
-                    ex_rs1_data <= rd_data_ex_fw;
-                else ex_rs1_data <= id_rs1_data;
-                if(id_rs2_read_enable && rd_write_enable_ex_fw && rd_addr_ex_fw == id_rs2_addr)
-                    ex_rs2_data <= rd_data_ex_fw;
-                else ex_rs2_data <= id_rs2_data;
-            end
-        end
-        else begin
-            ex_rs1_data <= `ZERO_WORD;
-            ex_rs2_data <= `ZERO_WORD;
         end
     end
 
@@ -191,7 +177,7 @@ module EX_MEM(
         else begin
             mem_funct3 <= `NFunct3;
             mem_rd_addr <= `X0;
-            mem_rd_write_enable <= `Enable;
+            mem_rd_write_enable <= `Disable;
             mem_rd_data <= `ZERO_WORD;
 
             mem_wr_enable <= `Disable;
@@ -229,7 +215,7 @@ module MEM_WB(
         else begin
             wb_rd_data <= `ZERO_WORD;
             wb_rd_addr <= `X0;
-            wb_rd_write_enable <= `Enable;
+            wb_rd_write_enable <= `Disable;
         end
     end
 endmodule

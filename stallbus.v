@@ -11,9 +11,9 @@ module StallBus(
     output wire wb_stall_enable_o
 );
     // stall all the stages BEFORE a stall requests.
-    assign if_stall_enable_o = id_stall_req_i; // IF/MEM stall request do not stall pc_reg(for pc + 4)
+    assign if_stall_enable_o = if_stall_req_i | id_stall_req_i | mem_stall_req_i;
     assign id_stall_enable_o = if_stall_req_i | id_stall_req_i | mem_stall_req_i;
     assign ex_stall_enable_o = if_stall_req_i | id_stall_req_i | mem_stall_req_i;
-    assign mem_stall_enable_o = mem_stall_req_i;
+    assign mem_stall_enable_o = if_stall_req_i | mem_stall_req_i;
     assign wb_stall_enable_o = mem_stall_req_i;
 endmodule
