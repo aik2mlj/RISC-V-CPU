@@ -145,6 +145,7 @@ wire is_mem_output;
 
 wire id_stall_req_resume;
 
+wire if_icache_hitted_o;
 
 MemCtrl memctrl(
     .clk(clk_in),
@@ -222,6 +223,7 @@ PCReg pc_reg(
     .jump_enable_i(pcreg_jump_enable_i),
     .jump_pc_i(pcreg_jump_pc_i),
 
+    .icache_hitted_i(if_icache_hitted_o),
     .inst_ready_i(if_inst_ready_o),
 
     .pc_enable_o(if_pc_enable_i),
@@ -247,6 +249,7 @@ InstFetch inst_fetch(
     .inst_ready_i(if_inst_ready_i),
     .inst_i(if_inst_i),
 
+    .icache_hitted_o(if_icache_hitted_o),
     .inst_ready_o(if_inst_ready_o),
 
     .next_pc_o(if_next_pc_o),
@@ -254,7 +257,9 @@ InstFetch inst_fetch(
 );
 
 wire if_id_rst_i = rst_in; // | id_jump_enable_o | ex_jump_enable_o;
-// JAL/AUIPC detected in ID | B_func taken/JALR detected in EX, reset IF_ID(NOP).
+// wire id_stall_enable_add_jump = id_stall_enable_i ||
+//     (pcreg_jump_enable_i && (if_icache_hitted_o || (!if_icache_hitted_o && !if_inst_ready_o)));
+// JAL detected in ID | B_func taken/JALR detected in EX, reset IF_ID(NOP).
 
 IF_ID if_id(
     .clk(clk_in),

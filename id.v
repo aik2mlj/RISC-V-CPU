@@ -46,7 +46,7 @@ module InstDecode(
     output reg[`AddrLen - 1: 0] jump_pc_o, // pc + imm, to EX and to IF
 
     // reset IF_ID & IF use jump_pc
-    output reg jump_enable_o // AUIPC & JAL
+    output reg jump_enable_o // JAL
 );
     wire[`OpcodeLen - 1: 0] opcode = inst_i[6: 0];
     reg imm_enable;
@@ -77,8 +77,6 @@ module InstDecode(
                 rs1_read_enable_o = `Disable;
                 rs2_read_enable_o = `Disable;
                 rd_write_enable_o = `Enable;
-
-                jump_enable_o = `Enable; // JUMP!
             end
             `JAL: begin
                 imm_o = {{12{inst_i[31]}}, inst_i[19: 12], inst_i[20], inst_i[30: 21], 1'b0};

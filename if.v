@@ -20,6 +20,7 @@ module InstFetch(
     input wire[`RegLen - 1: 0] inst_i,
 
     // to PCReg
+    output reg icache_hitted_o,
     output reg inst_ready_o,
 
     // to IF_ID
@@ -27,6 +28,7 @@ module InstFetch(
     output reg[`InstLen - 1: 0] inst_o // Send to IF_ID
 );
     reg[40: 0] icache[127: 0];
+    reg[`AddrLen - 1: 0] last_pc;
 
     // i-cache here
     integer i;
@@ -35,39 +37,41 @@ module InstFetch(
             for(i = 0; i < 128; i = i + 1) begin
                 icache[i][40] <= 1'b1;
             end
-            pc_o <= `ZERO_WORD;
+            last_pc <= `ZERO_WORD;
         end
         else begin
             if(inst_ready_i) begin
-                icache[pc_o[8: 2]] <= {pc_o[17: 9], inst_i};
-                pc_o <= pc_i + 4;
+                icache[last_pc[8: 2]] <= {last_pc[17: 9], inst_i};
+                last_pc <= pc_i + 4;
             end
             else begin
-                pc_o <= pc_i;
+                last_pc <= pc_i;
             end
         end
     end
 
     always @(*) begin
         if(!rst) begin
-            if_from_ram_enable_o = (icache[pc_o[8: 2]][40: 32] != pc_o[17: 9]) && !inst_ready_i;
+            if_from_ram_enable_o = (icache[pc_i[8: 2]][40: 32] != pc_i[17: 9]) && !inst_ready_i;
         end
         else if_from_ram_enable_o = `Disable;
+        icache_hitted_o = icache[pc_i[8: 2]][40: 32] == pc_i[17: 9];
     end
 
-    // always @(*) begin
-    //     if(if_from_ram_enable_o && is_if_output_i) stall_req_o = `Enable;
-    //     else stall_req_o = `Disable;
-    // end
+    always @(*) begin
+        if(if_from_ram_enable_o && is_if_output_i) stall_req_o = `Enable;
+        else stall_req_o = `Disable;
+    end
 
     // jump_enable to MEMCTRL
     always @(*) begin
-        if(if_from_ram_enable_o) begin
-            pc_jump_enable_o = pc_jump_enable_i;
-        end
-        else begin
-            pc_jump_enable_o = `ZERO_WORD;
-        end
+        pc_o = pc_i;
+        // if(if_from_ram_enable_o) begin
+        pc_jump_enable_o = pc_jump_enable_i;
+        // end
+        // else begin
+        //     pc_jump_enable_o = `ZERO_WORD;
+        // end
     end
 
     always @(*) begin
@@ -79,22 +83,28 @@ module InstFetch(
         if(rst) begin
             next_pc_o = `ZERO_WORD;
             inst_o = `ZERO_WORD;
-            stall_req_o = `Disable;
+            // stall_req_o = `Disable;
         end
-        else if(icache[pc_i[8: 2]][40: 32] == pc_i[17: 9]) begin
-            next_pc_o = pc_i;
-            inst_o = icache[pc_i[8: 2]][31: 0];
-            stall_req_o = `Disable;
+        else if(icache[pc_i[8: 2]][40: 32] == pc_i[17: 9]) begin // icache hitted
+            if(pc_jump_enable_i) begin // if jumped, reset inst
+                next_pc_o = `ZERO_WORD;
+                inst_o = `ZERO_WORD;
+            end
+            else begin
+                next_pc_o = pc_i;
+                inst_o = icache[pc_i[8: 2]][31: 0];
+            end
+            // stall_req_o = `Disable;
         end
         else if(inst_ready_i) begin
             next_pc_o = pc_i;
             inst_o = inst_i;
-            stall_req_o = `Disable;
+            // stall_req_o = `Disable;
         end
         else begin
             next_pc_o = `ZERO_WORD;
             inst_o = `ZERO_WORD;
-            stall_req_o = `Enable;
+            // stall_req_o = `Enable;
         end
     end
 

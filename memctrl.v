@@ -53,7 +53,8 @@ module MemCtrl(
     // state
     always @(*) begin
         if(output_state == IFout && if_pc_jump_enable_i && !already_jumped) begin // if pc jump, reset RW
-            next_state = RW0;
+            if(!if_from_ram_enable_i) next_state = OFF;
+            else next_state = RW0;
         end
         else begin
             case(state)
@@ -101,22 +102,27 @@ module MemCtrl(
 
     // output state
     always @(*) begin
-        case(state)
-            OFF: begin
-                if(output_state != NOout) next_output_state = NOout;
-                else if(mem_wr_enable_i) next_output_state = mem_wr_i? STOREout: LOADout;
-                else if(if_from_ram_enable_i) next_output_state = IFout;
-                else next_output_state = NOout;
-            end
+        if(output_state == IFout && if_pc_jump_enable_i && !already_jumped && !if_from_ram_enable_i)
+            next_output_state = NOout;
+        else begin
+            case(state)
+                OFF: begin
+                    if(output_state != NOout) next_output_state = NOout;
+                    else if(mem_wr_enable_i) next_output_state = mem_wr_i? STOREout: LOADout;
+                    else if(if_from_ram_enable_i) next_output_state = IFout;
+                    else next_output_state = NOout;
+                end
 
-            default: next_output_state = output_state;
-        endcase
+                default: next_output_state = output_state;
+            endcase
+        end
     end
 
     // addr
     always @(*) begin
         if(output_state == IFout && if_pc_jump_enable_i && !already_jumped) begin // if pc jump, update addr
-            next_addr = if_pc_i;
+            if(!if_from_ram_enable_i) next_addr = `ZERO_WORD;
+            else next_addr = if_pc_i;
         end
         else begin
             case(state)
