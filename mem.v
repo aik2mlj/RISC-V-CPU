@@ -2,6 +2,7 @@ module MemoryAccess(
     // from EX_MEM
     input wire wr_enable_i,
     input wire wr_i,
+    input wire[`AddrLen - 1: 0] next_pc_i,
     input wire[`Funct3Len - 1: 0] funct3_i, // for LOAD/STORE in MEM
     input wire[`RegAddrLen - 1: 0] rd_addr_i,
     input wire rd_write_enable_i,
@@ -12,6 +13,7 @@ module MemoryAccess(
     // to MEMCTRL
     output reg wr_enable_o,
     output reg wr_o,
+    output reg[`AddrLen - 1: 0] next_pc_o,
     // from MEMCTRL
     input wire is_mem_output_i,
     input wire load_store_ready_i,
@@ -72,6 +74,10 @@ module MemoryAccess(
             stall_req_o = ~load_store_ready_i;
         end
         else stall_req_o = `Disable;
+    end
+
+    always @(*) begin
+        next_pc_o = next_pc_i;
     end
 
 endmodule

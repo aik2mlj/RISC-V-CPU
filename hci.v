@@ -143,6 +143,7 @@ assign cpu_dbgreg_seg[0] = cpu_dbgreg_din[7:0];
 reg  [31:0] q_cpu_cycle_cnt;
 wire [31:0] d_cpu_cycle_cnt;
 assign d_cpu_cycle_cnt = active ? q_cpu_cycle_cnt : q_cpu_cycle_cnt + 1'b1;
+reg d_program_finish;
 
 // Update FF state.
 always @(posedge clk)
@@ -177,6 +178,7 @@ always @(posedge clk)
         q_io_en            <= io_en;
         q_cpu_cycle_cnt    <= d_cpu_cycle_cnt;
         q_io_dout          <= d_io_dout;
+        program_finish     <= d_program_finish;
       end
   end
 
@@ -234,7 +236,7 @@ always @*
     d_io_in_wr_en = 1'b0;
     d_io_in_wr_data = 8'h00;
 
-    program_finish = 1'b0;
+    d_program_finish = 1'b0;
 
     if (parity_err)
       d_err_code[DBG_UART_PARITY_ERR] = 1'b1;
@@ -255,7 +257,7 @@ always @*
               d_wr_en = 1'b1;
             end
             d_state = S_DECODE; 
-            program_finish = 1'b1;
+            d_program_finish = 1'b1;
             $display("IO:Return");
             $finish;
           end

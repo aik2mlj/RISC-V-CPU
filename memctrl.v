@@ -22,12 +22,15 @@ module MemCtrl(
     output reg[`RegLen - 1: 0] if_inst_o,
 
     input wire id_stall_req_i, // for Read after LOAD stall
+    // from ID
+    input wire[`AddrLen - 1: 0] id_stall_pc_i, // used for id_stall_resume check
     // to ID
     output reg id_stall_req_resume_o, // Enabled after LOAD is ready
 
     // from MEM
     input wire mem_wr_enable_i,
     input wire mem_wr_i, // write/read signal (1 for write)
+    input wire[`AddrLen - 1: 0] mem_next_pc_i, // used for id_stall_resume check
     // from EX_MEM
     input wire[`AddrLen - 1: 0] load_store_addr_i,
     input wire[1: 0] load_store_type_i, // how many bytes are required
@@ -222,7 +225,8 @@ module MemCtrl(
     always @(posedge clk) begin
         if(!rst) begin
             if(rdy) begin
-                if(id_stall_req_i && next_output_state == LOADout && next_state == OFF)
+                if(id_stall_req_i && next_output_state == LOADout && next_state == OFF && id_stall_pc_i == mem_next_pc_i)
+                    // LOAD off && is the last load.
                     id_stall_req_resume_o <= `Enable;
                 else id_stall_req_resume_o <= `Disable;
             end
@@ -268,7 +272,15 @@ module MemCtrl(
                             ram_addr_o <= next_addr;
                             ram_wr_o <= `Write;
                         end
+                        default: begin
+                            ram_addr_o <= `ZERO_WORD;
+                            ram_wr_o <= `Read;
+                        end
                     endcase
+                end
+                else if(next_state == OFF) begin // when OFF, just read 0x0. hci has a bug causing consecutive write on 0x30000 failed.
+                    ram_addr_o <= `ZERO_WORD;
+                    ram_wr_o <= `Read;
                 end
             end
         end

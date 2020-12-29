@@ -135,18 +135,20 @@ module EX_MEM(
     input wire stall_enable,
 
     // from EX
-    input wire[`RegLen - 1: 0] ex_rd_data, // to rd
+    input wire[`AddrLen - 1: 0] ex_next_pc,
     input wire[`RegLen - 1: 0] ex_store_data, // to RAM
     input wire ex_load_enable,
     input wire ex_store_enable,
     input wire[`AddrLen - 1: 0] ex_load_store_addr,
     input wire[`Funct3Len - 1: 0] ex_funct3, // for LOAD/STORE in MEM
+    input wire[`RegLen - 1: 0] ex_rd_data, // to rd
     input wire[`RegAddrLen - 1: 0] ex_rd_addr,
     input wire ex_rd_write_enable,
 
     // to MEM, then MEM to MEMCTRL
     output reg mem_wr_enable,
     output reg mem_wr,
+    output reg[`AddrLen - 1: 0] mem_next_pc,
 
     // to MEM
     output reg[`Funct3Len - 1: 0] mem_funct3,
@@ -162,6 +164,7 @@ module EX_MEM(
     always @(posedge clk) begin
         if(!rst) begin
             if(rdy && !stall_enable) begin
+                mem_next_pc <= ex_next_pc;
                 mem_funct3 <= ex_funct3;
                 mem_rd_addr <= ex_rd_addr;
                 mem_rd_write_enable <= ex_rd_write_enable;
@@ -175,6 +178,7 @@ module EX_MEM(
             end
         end
         else begin
+            mem_next_pc <= `ZERO_WORD;
             mem_funct3 <= `NFunct3;
             mem_rd_addr <= `X0;
             mem_rd_write_enable <= `Disable;

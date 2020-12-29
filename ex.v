@@ -12,6 +12,7 @@ module Execution(
     input wire[`AddrLen - 1: 0] jump_pc_i, // pc + imm (AUIPC -> MEM(rd), B_func -> IF)
 
     // to MEM
+    output reg[`AddrLen - 1: 0] next_pc_o, // used for id_stall_resume check in MEM
     output reg[`RegLen - 1: 0] store_data_o, // to RAM
     output reg load_enable_o,
     output reg store_enable_o,
@@ -117,6 +118,10 @@ module Execution(
                 jump_pc_o = `ZERO_WORD;
             end
         endcase
+    end
+
+    always @(*) begin
+        next_pc_o = next_pc_i;
     end
 
 endmodule

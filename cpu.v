@@ -12,7 +12,7 @@ module cpu(
     output wire [31:0]          mem_a,          // address bus (only 17:0 is used)
     output wire                 mem_wr,         // write/read signal (1 for write)
 
-    input  wire                 io_buffer_full, // 1 if uart buffer is full
+    input  wire                 io_buffer_full, // 1 if uart buffer is full TODO:
 
     output wire [31:0]          dbgreg_dout     // cpu register output (debugging demo)
 );
@@ -96,6 +96,7 @@ wire ex_rd_write_enable_i;
 wire[`AddrLen - 1: 0] ex_next_pc_i;
 wire[`AddrLen - 1: 0] ex_jump_pc_i;
 
+wire[`AddrLen - 1: 0] ex_next_pc_o;
 wire[`RegLen - 1: 0] ex_store_data_o;
 wire ex_load_enable_o;
 wire ex_store_enable_o;
@@ -112,8 +113,10 @@ wire ex_jump_enable_o;
 // -------------------- MEM wires --------------------
 wire mem_wr_enable_i;
 wire mem_wr_i;
+wire[`AddrLen - 1: 0] mem_next_pc_i;
 wire mem_wr_enable_o;
 wire mem_wr_o;
+wire[`AddrLen - 1: 0] mem_next_pc_o;
 
 wire[`Funct3Len - 1: 0] mem_funct3_i;
 wire[`RegAddrLen - 1: 0] mem_rd_addr_i;
@@ -144,6 +147,7 @@ wire is_if_output;
 wire is_mem_output;
 
 wire id_stall_req_resume;
+wire[`AddrLen - 1: 0] id_stall_pc_o;
 
 wire if_icache_hitted_o;
 
@@ -168,10 +172,13 @@ MemCtrl memctrl(
     .if_inst_o(if_inst_i),
 
     .id_stall_req_i(id_stall_req_o),
+
+    .id_stall_pc_i(id_stall_pc_o),
     .id_stall_req_resume_o(id_stall_req_resume),
 
     .mem_wr_enable_i(mem_wr_enable_o), // from MEM
     .mem_wr_i(mem_wr_o), // from MEM
+    .mem_next_pc_i(mem_next_pc_o),
     .load_store_addr_i(mem_load_store_addr_i),
     .load_store_type_i(mem_load_store_type_i),
     .store_data_i(mem_store_data_i),
@@ -278,6 +285,7 @@ InstDecode inst_decode(
     .inst_i(id_inst_i),
 
     .stall_req_o(id_stall_req_o),
+    .id_stall_pc_o(id_stall_pc_o),
 
     // Read after LOAD signal from ID_EX(last inst)
     .last_is_load_i(last_is_load),
@@ -373,6 +381,7 @@ Execution excution(
     .next_pc_i(ex_next_pc_i),
     .jump_pc_i(ex_jump_pc_i),
 
+    .next_pc_o(ex_next_pc_o),
     .store_data_o(ex_store_data_o),
     .load_enable_o(ex_load_enable_o),
     .store_enable_o(ex_store_enable_o),
@@ -396,18 +405,20 @@ EX_MEM ex_mem(
     .rdy(rdy_in),
     .stall_enable(mem_stall_enable_i),
 
-    .ex_rd_data(ex_rd_data_o),
+    .ex_next_pc(ex_next_pc_o),
     .ex_store_data(ex_store_data_o),
     .ex_load_enable(ex_load_enable_o),
     .ex_store_enable(ex_store_enable_o),
     .ex_load_store_addr(ex_load_store_addr_o),
     .ex_funct3(ex_funct3_o),
+    .ex_rd_data(ex_rd_data_o),
     .ex_rd_addr(ex_rd_addr_o),
     .ex_rd_write_enable(ex_rd_write_enable_o),
 
     .mem_wr_enable(mem_wr_enable_i),
     .mem_wr(mem_wr_i),
 
+    .mem_next_pc(mem_next_pc_i),
     .mem_funct3(mem_funct3_i),
     .mem_rd_addr(mem_rd_addr_i),
     .mem_rd_write_enable(mem_rd_write_enable_i),
@@ -421,6 +432,7 @@ EX_MEM ex_mem(
 MemoryAccess memory_access(
     .wr_enable_i(mem_wr_enable_i),
     .wr_i(mem_wr_i),
+    .next_pc_i(mem_next_pc_i),
     .funct3_i(mem_funct3_i),
     .rd_addr_i(mem_rd_addr_i),
     .rd_write_enable_i(mem_rd_write_enable_i),
@@ -430,6 +442,7 @@ MemoryAccess memory_access(
 
     .wr_enable_o(mem_wr_enable_o),
     .wr_o(mem_wr_o),
+    .next_pc_o(mem_next_pc_o),
 
     .is_mem_output_i(is_mem_output),
     .load_store_ready_i(mem_load_store_ready_i),

@@ -5,6 +5,7 @@ module InstDecode(
     input wire[`InstLen - 1: 0] inst_i,
 
     output reg stall_req_o,
+    output reg[`AddrLen - 1: 0] id_stall_pc_o, // used for id_stall_resume check in MEMCTRL
 
     // Read after LOAD signal from ID_EX(last inst)
     input wire last_is_load_i,
@@ -158,6 +159,7 @@ module InstDecode(
 
     // calculate pc + imm for AUIPC, JAL, Branch
     always @(*) begin
+        id_stall_pc_o = next_pc_i;
         next_pc_o = next_pc_i + 4;
         jump_pc_o = next_pc_i + imm_o;
     end
