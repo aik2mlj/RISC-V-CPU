@@ -14,6 +14,6 @@ module StallBus(
     assign if_stall_enable_o = if_stall_req_i | id_stall_req_i | mem_stall_req_i;
     assign id_stall_enable_o = if_stall_req_i | id_stall_req_i | mem_stall_req_i;
     assign ex_stall_enable_o = if_stall_req_i | id_stall_req_i | mem_stall_req_i;
-    assign mem_stall_enable_o = if_stall_req_i | mem_stall_req_i;
+    assign mem_stall_enable_o= if_stall_req_i | mem_stall_req_i;
     assign wb_stall_enable_o = mem_stall_req_i;
 endmodule

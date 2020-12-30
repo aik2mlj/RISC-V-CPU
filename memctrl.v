@@ -55,89 +55,101 @@ module MemCtrl(
 // ----------- state transition logic -------------
     // state
     always @(*) begin
-        if(output_state == IFout && if_pc_jump_enable_i && !already_jumped) begin // if pc jump, reset RW
-            if(!if_from_ram_enable_i) next_state = OFF;
-            else next_state = RW0;
-        end
-        else begin
-            case(state)
-                OFF: begin
-                    if(output_state != NOout) next_state = OFF;
-                    else if(mem_wr_enable_i) next_state = RW0;
-                    else if(if_from_ram_enable_i) next_state = RW0;
-                    else next_state = OFF;
-                end
+        if(!rst) begin
+            if(output_state == IFout && if_pc_jump_enable_i && !already_jumped) begin // if pc jump, reset RW
+                if(!if_from_ram_enable_i) next_state = OFF;
+                else next_state = RW0;
+            end
+            else begin
+                case(state)
+                    OFF: begin
+                        if(output_state != NOout) next_state = OFF;
+                        else if(mem_wr_enable_i) next_state = RW0;
+                        else if(if_from_ram_enable_i) next_state = RW0;
+                        else next_state = OFF;
+                    end
 
-                RW0: begin
-                    if(output_state == STOREout && load_store_type_i == `LSB) next_state = OFF;
-                    else next_state = RW1;
-                end
-                RW1: begin
-                    if((output_state == LOADout && load_store_type_i == `LSB)
-                    || (output_state == STOREout && load_store_type_i == `LSH)) next_state = OFF;
-                    else next_state = RW2;
-                end
-                RW2: begin
-                    if(output_state == LOADout && load_store_type_i == `LSH) next_state = OFF;
-                    else next_state = RW3;
-                end
-                RW3: begin
-                    if(output_state == STOREout) next_state = OFF;
-                    else next_state = RW4;
-                end
-                RW4: next_state = OFF;
-                default: next_state = OFF;
-            endcase
+                    RW0: begin
+                        if(output_state == STOREout && load_store_type_i == `LSB) next_state = OFF;
+                        else next_state = RW1;
+                    end
+                    RW1: begin
+                        if((output_state == LOADout && load_store_type_i == `LSB)
+                        || (output_state == STOREout && load_store_type_i == `LSH)) next_state = OFF;
+                        else next_state = RW2;
+                    end
+                    RW2: begin
+                        if(output_state == LOADout && load_store_type_i == `LSH) next_state = OFF;
+                        else next_state = RW3;
+                    end
+                    RW3: begin
+                        if(output_state == STOREout) next_state = OFF;
+                        else next_state = RW4;
+                    end
+                    RW4: next_state = OFF;
+                    default: next_state = OFF;
+                endcase
+            end
         end
+        else next_state = OFF;
     end
 
     // already jumped state
     always @(*) begin
-        if(!already_jumped) begin
-            if(output_state == IFout && if_pc_jump_enable_i) next_already_jumped = `True;
-            else next_already_jumped = `False;
+        if(!rst) begin
+            if(!already_jumped) begin
+                if(output_state == IFout && if_pc_jump_enable_i) next_already_jumped = `True;
+                else next_already_jumped = `False;
+            end
+            else begin
+                if(state == OFF) next_already_jumped = `False;
+                else next_already_jumped = `True;
+            end
         end
-        else begin
-            if(state == OFF) next_already_jumped = `False;
-            else next_already_jumped = `True;
-        end
+        else next_already_jumped = `False;
     end
 
     // output state
     always @(*) begin
-        if(output_state == IFout && if_pc_jump_enable_i && !already_jumped && !if_from_ram_enable_i)
-            next_output_state = NOout;
-        else begin
-            case(state)
-                OFF: begin
-                    if(output_state != NOout) next_output_state = NOout;
-                    else if(mem_wr_enable_i) next_output_state = mem_wr_i? STOREout: LOADout;
-                    else if(if_from_ram_enable_i) next_output_state = IFout;
-                    else next_output_state = NOout;
-                end
+        if(!rst) begin
+            if(output_state == IFout && if_pc_jump_enable_i && !already_jumped && !if_from_ram_enable_i)
+                next_output_state = NOout;
+            else begin
+                case(state)
+                    OFF: begin
+                        if(output_state != NOout) next_output_state = NOout;
+                        else if(mem_wr_enable_i) next_output_state = mem_wr_i? STOREout: LOADout;
+                        else if(if_from_ram_enable_i) next_output_state = IFout;
+                        else next_output_state = NOout;
+                    end
 
-                default: next_output_state = output_state;
-            endcase
+                    default: next_output_state = output_state;
+                endcase
+            end
         end
+        else next_output_state = NOout;
     end
 
     // addr
     always @(*) begin
-        if(output_state == IFout && if_pc_jump_enable_i && !already_jumped) begin // if pc jump, update addr
-            if(!if_from_ram_enable_i) next_addr = `ZERO_WORD;
-            else next_addr = if_pc_i;
-        end
-        else begin
-            case(state)
-                OFF: begin
-                    if(mem_wr_enable_i) next_addr = load_store_addr_i;
-                    else if(if_from_ram_enable_i) next_addr = if_pc_i;
-                    else next_addr = `ZERO_WORD;
-                end
+        if(!rst) begin
+            if(output_state == IFout && if_pc_jump_enable_i && !already_jumped) begin // if pc jump, update addr
+                if(!if_from_ram_enable_i) next_addr = `ZERO_WORD;
+                else next_addr = if_pc_i;
+            end
+            else begin
+                case(state)
+                    OFF: begin
+                        if(mem_wr_enable_i) next_addr = load_store_addr_i;
+                        else if(if_from_ram_enable_i) next_addr = if_pc_i;
+                        else next_addr = `ZERO_WORD;
+                    end
 
-                default: next_addr = current_addr + 1;
-            endcase
+                    default: next_addr = current_addr + 1;
+                endcase
+            end
         end
+        else next_addr = `ZERO_WORD;
     end
 
     // output state to IF/MEM
@@ -203,10 +215,10 @@ module MemCtrl(
             current_addr <= `ZERO_WORD;
             already_jumped <= `False;
 
-            next_state <= OFF;
-            next_output_state <= NOout;
-            next_addr <= `ZERO_WORD;
-            next_already_jumped <= `False;
+            // next_state <= OFF;
+            // next_output_state <= NOout;
+            // next_addr <= `ZERO_WORD;
+            // next_already_jumped <= `False;
         end
     end
 

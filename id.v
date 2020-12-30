@@ -127,6 +127,7 @@ module InstDecode(
                 rd_write_enable_o = `Enable;
             end
             `R_R_func: begin
+                imm_o = `ZERO_WORD;
                 imm_enable = `Disable;
                 aluop_o[3] = inst_i[30]; // funct7_bit
                 alusel_o = `LOGIC_RES;

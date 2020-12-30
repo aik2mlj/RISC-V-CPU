@@ -140,6 +140,7 @@ wire[`RegAddrLen - 1: 0] wb_rd_addr_i;
 wire wb_rd_write_enable_i;
 
 // -------------------- Miscellaneous --------------------
+wire rdy_ = rdy_in & ~io_buffer_full;
 wire last_is_load;
 wire[`RegAddrLen - 1: 0] last_load_rd_addr;
 
@@ -154,7 +155,7 @@ wire if_icache_hitted_o;
 MemCtrl memctrl(
     .clk(clk_in),
     .rst(rst_in),
-    .rdy(rdy_in),
+    .rdy(rdy_),
 
     .ram_data_i(mem_din),
     .ram_data_o(mem_dout),
@@ -224,7 +225,7 @@ assign pcreg_jump_pc_i = (ex_jump_enable_o)? ex_jump_pc_o: id_jump_pc_o; // B_fu
 PCReg pc_reg(
     .clk(clk_in),
     .rst(rst_in),
-    .rdy(rdy_in),
+    .rdy(rdy_),
     .stall_enable(if_stall_enable_i),
 
     .jump_enable_i(pcreg_jump_enable_i),
@@ -271,7 +272,7 @@ wire if_id_rst_i = rst_in; // | id_jump_enable_o | ex_jump_enable_o;
 IF_ID if_id(
     .clk(clk_in),
     .rst(if_id_rst_i),
-    .rdy(rdy_in),
+    .rdy(rdy_),
     .stall_enable(id_stall_enable_i),
 
     .if_next_pc(if_next_pc_o),
@@ -335,7 +336,7 @@ wire id_ex_jump_rst = ex_jump_enable_o; // FIXME:
 ID_EX id_ex(
     .clk(clk_in),
     .rst(rst_in),
-    .rdy(rdy_in),
+    .rdy(rdy_),
     .stall_enable(ex_stall_enable_i),
     .jump_rst(id_ex_jump_rst),
 
@@ -402,7 +403,7 @@ wire ex_mem_rst_i = rst_in | id_stall_req_resume;
 EX_MEM ex_mem(
     .clk(clk_in),
     .rst(ex_mem_rst_i),
-    .rdy(rdy_in),
+    .rdy(rdy_),
     .stall_enable(mem_stall_enable_i),
 
     .ex_next_pc(ex_next_pc_o),
@@ -456,7 +457,7 @@ MemoryAccess memory_access(
 MEM_WB mem_wb(
     .clk(clk_in),
     .rst(rst_in),
-    .rdy(rdy_in),
+    .rdy(rdy_),
     .stall_enable(wb_stall_enable_i),
 
     .mem_rd_data(mem_rd_data_o),
