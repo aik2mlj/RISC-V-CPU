@@ -5,7 +5,6 @@ module InstFetch(
     output reg stall_req_o,
 
     // from PCReg
-    input wire pc_enable_i,
     input wire[`AddrLen - 1: 0] pc_i, // also to IF
     input wire pc_jump_enable_i,
 

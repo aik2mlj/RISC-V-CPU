@@ -12,7 +12,7 @@ module cpu(
     output wire [31:0]          mem_a,          // address bus (only 17:0 is used)
     output wire                 mem_wr,         // write/read signal (1 for write)
 
-    input  wire                 io_buffer_full, // 1 if uart buffer is full TODO:
+    input  wire                 io_buffer_full, // 1 if uart buffer is full
 
     output wire [31:0]          dbgreg_dout     // cpu register output (debugging demo)
 );
@@ -47,7 +47,6 @@ wire pcreg_jump_enable_i;
 wire[`AddrLen - 1: 0] pcreg_jump_pc_i;
 
 // -------------------- IF wires --------------------
-wire if_pc_enable_i;
 wire[`AddrLen - 1: 0] if_pc_i;
 wire if_pc_jump_enable_i;
 
@@ -162,8 +161,6 @@ MemCtrl memctrl(
     .ram_addr_o(mem_a),
     .ram_wr_o(mem_wr),
 
-    .memctrl_off_o(memctrl_off), // TODO: rewrite?
-
     .if_from_ram_enable_i(if_from_ram_enable_o),
     .if_pc_i(if_pc_o),
     .if_pc_jump_enable_i(if_pc_jump_enable_o),
@@ -234,7 +231,6 @@ PCReg pc_reg(
     .icache_hitted_i(if_icache_hitted_o),
     .inst_ready_i(if_inst_ready_o),
 
-    .pc_enable_o(if_pc_enable_i),
     .pc_o(if_pc_i),
     .pc_jump_enable_o(if_pc_jump_enable_i)
 );
@@ -245,7 +241,6 @@ InstFetch inst_fetch(
 
     .stall_req_o(if_stall_req_o),
 
-    .pc_enable_i(if_pc_enable_i),
     .pc_i(if_pc_i),
     .pc_jump_enable_i(if_pc_jump_enable_i),
 
@@ -330,7 +325,7 @@ InstDecode inst_decode(
     .jump_enable_o(id_jump_enable_o)
 );
 
-wire id_ex_jump_rst = ex_jump_enable_o; // FIXME:
+wire id_ex_jump_rst = ex_jump_enable_o;
 // B_func taken/JALR detected in EX | Read after LOAD stall: reset ID_EX(NOP)
 
 ID_EX id_ex(

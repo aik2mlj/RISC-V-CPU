@@ -9,9 +9,6 @@ module MemCtrl(
     output reg[`AddrLen - 1: 0] ram_addr_o,
     output reg ram_wr_o,
 
-    // to IF/MEM
-    output reg memctrl_off_o,
-
     // from IF
     input wire if_from_ram_enable_i,
     input wire[`AddrLen - 1: 0] if_pc_i,
@@ -43,10 +40,10 @@ module MemCtrl(
 );
     // finite state machine
     parameter RW0 = 1, RW1 = 2, RW2 = 3, RW3 = 4, RW4 = 5, OFF = 0;
-    reg[3: 0] state, next_state;
+    reg[2: 0] state, next_state;
 
     parameter NOout = 0, LOADout = 1, STOREout = 2, IFout = 3;
-    reg[2: 0] output_state, next_output_state; // which output
+    reg[1: 0] output_state, next_output_state; // which output
 
     reg[`AddrLen - 1: 0] current_addr, next_addr;
 
@@ -220,17 +217,6 @@ module MemCtrl(
             // next_addr <= `ZERO_WORD;
             // next_already_jumped <= `False;
         end
-    end
-
-    // OFF
-    always @(posedge clk) begin
-        if(!rst) begin
-            if(rdy) begin
-                if(next_state == OFF) memctrl_off_o <= `True;
-                else memctrl_off_o <= `False;
-            end
-        end
-        else memctrl_off_o <= `True;
     end
 
     // resume ex/id/if when LOAD is ready (id stall caused by Read after LOAD)

@@ -12,17 +12,9 @@ module PCReg(
     input wire inst_ready_i,
 
     // to IF
-    output reg pc_enable_o,
     output reg[`AddrLen - 1: 0] pc_o,
     output reg pc_jump_enable_o
 );
-    // pc enable
-    always @(posedge clk) begin
-        if(!rst) begin
-            if(rdy && !stall_enable) pc_enable_o <= `Enable;
-        end
-        else pc_enable_o <= `Disable;
-    end
 
     always @(posedge clk) begin
         if(!rst) begin
