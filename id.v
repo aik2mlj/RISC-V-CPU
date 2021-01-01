@@ -1,11 +1,16 @@
 module InstDecode(
     // clk is not needed here since it is combinational
     // From IF_ID
-    input wire[`AddrLen - 1: 0] next_pc_i,
+    input wire[`AddrLen - 1: 0] pc_i,
     input wire[`InstLen - 1: 0] inst_i,
 
+    // From IF
+    input wire[`AddrLen - 1: 0] predicted_pc_i, // the next pc directly from IF, maybe the jumped one
+
     output reg stall_req_o,
-    output reg[`AddrLen - 1: 0] id_stall_pc_o, // used for id_stall_resume check in MEMCTRL
+    output reg[`AddrLen - 1: 0] pc_o,
+    // = pc_i, to MEMCTRL: used for id_stall_resume check in MEMCTRL
+    // to PCReg: JAL's branch_pc_i
 
     // Read after LOAD signal from ID_EX(last inst)
     input wire last_is_load_i,
@@ -46,8 +51,9 @@ module InstDecode(
     output reg[`AddrLen - 1: 0] next_pc_o, // pc + 4
     output reg[`AddrLen - 1: 0] jump_pc_o, // pc + imm, to EX and to IF
 
-    // reset IF_ID & IF use jump_pc
-    output reg jump_enable_o // JAL
+    // to PCReg
+    output reg is_jal_o, // Predictor feedback signal
+    output reg jump_enable_o // JAL jump
 );
     wire[`OpcodeLen - 1: 0] opcode = inst_i[6: 0];
     reg imm_enable;
@@ -62,6 +68,7 @@ module InstDecode(
         aluop_o = {1'b0, inst_i[14: 12]};
         funct3_o = inst_i[14: 12];
         imm_enable = `Enable;
+        is_jal_o = `False;
         jump_enable_o = `Disable;
         case(opcode)
             `LUI: begin
@@ -86,7 +93,9 @@ module InstDecode(
                 rs2_read_enable_o = `Disable;
                 rd_write_enable_o = `Enable;
 
-                jump_enable_o = `Enable; // JUMP!
+                is_jal_o = `True;
+                // jump_enable_o = predicted_pc_i == jump_pc_o? `Disable: `Enable; // if predicted wrong, JUMP!
+                jump_enable_o = `Enable;
             end
             `JALR: begin
                 imm_o = {{20{inst_i[31]}}, inst_i[31: 20]};
@@ -160,9 +169,9 @@ module InstDecode(
 
     // calculate pc + imm for AUIPC, JAL, Branch
     always @(*) begin
-        id_stall_pc_o = next_pc_i;
-        next_pc_o = next_pc_i + 4;
-        jump_pc_o = next_pc_i + imm_o;
+        pc_o = pc_i;
+        next_pc_o = pc_i + 4;
+        jump_pc_o = pc_i + imm_o;
     end
 
     // Get rs1_data

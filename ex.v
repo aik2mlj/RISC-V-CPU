@@ -11,6 +11,8 @@ module Execution(
     input wire[`AddrLen - 1: 0] next_pc_i, // pc + 4 (JAL/JALR -> MEM(rd))
     input wire[`AddrLen - 1: 0] jump_pc_i, // pc + imm (AUIPC -> MEM(rd), B_func -> IF)
 
+    input wire[`AddrLen - 1: 0] predicted_pc_i, // the next predicted pc, directly from ID id_pc_o
+
     // to MEM
     output reg[`AddrLen - 1: 0] next_pc_o, // used for id_stall_resume check in MEM
     output reg[`RegLen - 1: 0] store_data_o, // to RAM
@@ -25,8 +27,12 @@ module Execution(
     // EX forwarding signal
     output reg rd_ready_o,
 
-    // to IF
-    output reg[`AddrLen - 1: 0] jump_pc_o, // to IF (B_func: pc + imm, JALR: rs1 + imm)
+    // to PcReg
+    output reg is_branch_o,
+    output reg branch_taken_o,
+    output reg[`AddrLen - 1: 0] branch_pc_o, // where the branch inst. is
+    output reg[`AddrLen - 1: 0] branch_target_o, // branch target(i.e. pc + imm)
+    output reg[`AddrLen - 1: 0] jump_pc_o, // to IF (B_func: pc + imm/pc + 4, JALR: rs1 + imm)
     output reg jump_enable_o // 1 when branch is taken or JALR, to IF
 );
     reg[`RegLen - 1: 0] res; // logic result
@@ -104,18 +110,24 @@ module Execution(
 
     // jump: B_func, JALR
     always @(*) begin
+        is_branch_o = `False;
+        branch_taken_o = `False;
+        branch_pc_o = `ZERO_WORD;
+        branch_target_o = `ZERO_WORD;
+        jump_enable_o = `Disable;
+        jump_pc_o = `ZERO_WORD;
         case(alusel_i)
             `B_NAN: begin
-                jump_enable_o = cond;
-                jump_pc_o = jump_pc_i;
+                is_branch_o = `True;
+                branch_taken_o = cond;
+                branch_pc_o = next_pc_i - 4;
+                branch_target_o = jump_pc_i;
+                jump_pc_o = cond? jump_pc_i: next_pc_i; // pc + imm or pc + 4
+                jump_enable_o = predicted_pc_i == jump_pc_o? `Disable: `Enable; // If mispredicted, jump
             end
             `JALR_NPC: begin
                 jump_enable_o = `Enable;
                 jump_pc_o = res;
-            end
-            default: begin
-                jump_enable_o = `Disable;
-                jump_pc_o = `ZERO_WORD;
             end
         endcase
     end

@@ -46,12 +46,17 @@ wire wb_stall_enable_i;
 wire pcreg_jump_enable_i;
 wire[`AddrLen - 1: 0] pcreg_jump_pc_i;
 
+wire pcreg_is_branch_i;
+wire pcreg_branch_taken_i;
+wire[`AddrLen - 1: 0] pcreg_branch_pc_i;
+wire[`AddrLen - 1: 0] pcreg_branch_target_i;
+
 // -------------------- IF wires --------------------
 wire[`AddrLen - 1: 0] if_pc_i;
 wire if_pc_jump_enable_i;
 
 wire if_from_ram_enable_o;
-wire[`AddrLen - 1: 0] if_pc_o;
+wire[`AddrLen - 1: 0] if_pc_memctrl_o;
 wire if_pc_jump_enable_o;
 
 wire if_inst_ready_i;
@@ -59,16 +64,18 @@ wire[`RegLen - 1: 0] if_inst_i;
 
 wire if_inst_ready_o;
 
-wire[`AddrLen - 1: 0] if_next_pc_o;
+wire[`AddrLen - 1: 0] if_pc_o;
 wire[`InstLen - 1: 0] if_inst_o;
 
 // -------------------- ID wires --------------------
-wire[`AddrLen - 1: 0] id_next_pc_i;
+wire[`AddrLen - 1: 0] id_pc_i;
 wire[`InstLen - 1: 0] id_inst_i;
 
 wire[`RegLen - 1: 0] id_rs1_data_i, id_rs2_data_i;      // Reg -> ID
 wire id_rs1_read_enable_o, id_rs2_read_enable_o;    // ID -> Reg
 wire[`RegAddrLen - 1: 0] id_rs1_addr_o, id_rs2_addr_o;
+
+wire[`AddrLen - 1: 0] id_pc_o;
 
 wire[`RegLen - 1: 0] id_rs1_data_o, id_rs2_data_o;
 wire[`AluOpLen - 1: 0] id_aluop_o;
@@ -80,6 +87,8 @@ wire id_rd_write_enable_o;
 
 wire[`AddrLen - 1: 0] id_next_pc_o;
 wire[`AddrLen - 1: 0] id_jump_pc_o;
+
+wire id_is_jal_o;
 wire id_jump_enable_o;
 
 // -------------------- EX wires --------------------
@@ -106,6 +115,10 @@ wire[`RegAddrLen - 1: 0] ex_rd_addr_o;
 wire ex_rd_write_enable_o;
 wire ex_rd_ready_o;
 
+wire ex_is_branch_o;
+wire ex_branch_taken_o;
+wire[`AddrLen - 1: 0] ex_branch_pc_o;
+wire[`AddrLen - 1: 0] ex_branch_target_o;
 wire[`AddrLen - 1: 0] ex_jump_pc_o;
 wire ex_jump_enable_o;
 
@@ -147,7 +160,6 @@ wire is_if_output;
 wire is_mem_output;
 
 wire id_stall_req_resume;
-wire[`AddrLen - 1: 0] id_stall_pc_o;
 
 wire if_icache_hitted_o;
 
@@ -162,7 +174,7 @@ MemCtrl memctrl(
     .ram_wr_o(mem_wr),
 
     .if_from_ram_enable_i(if_from_ram_enable_o),
-    .if_pc_i(if_pc_o),
+    .if_pc_i(if_pc_memctrl_o),
     .if_pc_jump_enable_i(if_pc_jump_enable_o),
 
     .is_if_output_o(is_if_output),
@@ -171,7 +183,7 @@ MemCtrl memctrl(
 
     .id_stall_req_i(id_stall_req_o),
 
-    .id_stall_pc_i(id_stall_pc_o),
+    .id_stall_pc_i(id_pc_o),
     .id_stall_req_resume_o(id_stall_req_resume),
 
     .mem_wr_enable_i(mem_wr_enable_o), // from MEM
@@ -216,8 +228,13 @@ Register register(
     .dbgregs_o(dbgreg_dout)
 );
 
+assign pcreg_is_branch_i = ex_is_branch_o;
+assign pcreg_branch_taken_i = ex_branch_taken_o;
+assign pcreg_branch_pc_i = ex_branch_pc_o;
+assign pcreg_branch_target_i = ex_branch_target_o;
+
 assign pcreg_jump_enable_i = ex_jump_enable_o | id_jump_enable_o;
-assign pcreg_jump_pc_i = (ex_jump_enable_o)? ex_jump_pc_o: id_jump_pc_o; // B_func taken/JALR: ex_jump; JAL/JALR: id_jump
+assign pcreg_jump_pc_i = (ex_jump_enable_o)? ex_jump_pc_o: id_jump_pc_o; // B_func taken/JALR: ex_jump; JAL: id_jump
 
 PCReg pc_reg(
     .clk(clk_in),
@@ -227,6 +244,11 @@ PCReg pc_reg(
 
     .jump_enable_i(pcreg_jump_enable_i),
     .jump_pc_i(pcreg_jump_pc_i),
+
+    .is_branch_i(pcreg_is_branch_i),
+    .branch_taken_i(pcreg_branch_taken_i),
+    .branch_pc_i(pcreg_branch_pc_i),
+    .branch_target_i(pcreg_branch_target_i),
 
     .icache_hitted_i(if_icache_hitted_o),
     .inst_ready_i(if_inst_ready_o),
@@ -245,7 +267,7 @@ InstFetch inst_fetch(
     .pc_jump_enable_i(if_pc_jump_enable_i),
 
     .if_from_ram_enable_o(if_from_ram_enable_o),
-    .pc_o(if_pc_o),
+    .pc_memctrl_o(if_pc_memctrl_o),
     .pc_jump_enable_o(if_pc_jump_enable_o),
 
     .is_if_output_i(is_if_output),
@@ -255,7 +277,7 @@ InstFetch inst_fetch(
     .icache_hitted_o(if_icache_hitted_o),
     .inst_ready_o(if_inst_ready_o),
 
-    .next_pc_o(if_next_pc_o),
+    .pc_o(if_pc_o),
     .inst_o(if_inst_o)
 );
 
@@ -270,18 +292,20 @@ IF_ID if_id(
     .rdy(rdy_),
     .stall_enable(id_stall_enable_i),
 
-    .if_next_pc(if_next_pc_o),
+    .if_pc(if_pc_o),
     .if_inst(if_inst_o),
-    .id_next_pc(id_next_pc_i),
+    .id_pc(id_pc_i),
     .id_inst(id_inst_i)
 );
 
 InstDecode inst_decode(
-    .next_pc_i(id_next_pc_i),
+    .pc_i(id_pc_i),
     .inst_i(id_inst_i),
 
+    .predicted_pc_i(if_pc_i),
+
     .stall_req_o(id_stall_req_o),
-    .id_stall_pc_o(id_stall_pc_o),
+    .pc_o(id_pc_o),
 
     // Read after LOAD signal from ID_EX(last inst)
     .last_is_load_i(last_is_load),
@@ -322,6 +346,7 @@ InstDecode inst_decode(
     .next_pc_o(id_next_pc_o),
     .jump_pc_o(id_jump_pc_o),
 
+    .is_jal_o(id_is_jal_o),
     .jump_enable_o(id_jump_enable_o)
 );
 
@@ -377,6 +402,8 @@ Execution excution(
     .next_pc_i(ex_next_pc_i),
     .jump_pc_i(ex_jump_pc_i),
 
+    .predicted_pc_i(id_pc_i),
+
     .next_pc_o(ex_next_pc_o),
     .store_data_o(ex_store_data_o),
     .load_enable_o(ex_load_enable_o),
@@ -389,6 +416,10 @@ Execution excution(
     .rd_addr_o(ex_rd_addr_o),
     .rd_ready_o(ex_rd_ready_o),
 
+    .is_branch_o(ex_is_branch_o),
+    .branch_taken_o(ex_branch_taken_o),
+    .branch_pc_o(ex_branch_pc_o),
+    .branch_target_o(ex_branch_target_o),
     .jump_pc_o(ex_jump_pc_o),
     .jump_enable_o(ex_jump_enable_o)
 );

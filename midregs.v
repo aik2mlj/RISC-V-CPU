@@ -4,20 +4,20 @@ module IF_ID(
     input wire rdy,
     input wire stall_enable,
 
-    input wire[`AddrLen - 1: 0] if_next_pc,
+    input wire[`AddrLen - 1: 0] if_pc,
     input wire[`InstLen - 1: 0] if_inst,
-    output reg[`AddrLen - 1: 0] id_next_pc,
+    output reg[`AddrLen - 1: 0] id_pc,
     output reg[`InstLen - 1: 0] id_inst
 );
     always @(posedge clk) begin
         if(!rst) begin
             if(rdy && !stall_enable) begin
-                id_next_pc <= if_next_pc;
+                id_pc <= if_pc;
                 id_inst <= if_inst;
             end
         end
         else begin
-            id_next_pc <= `ZERO_WORD;
+            id_pc <= `ZERO_WORD;
             id_inst <= `ZERO_WORD; // Turn into NOP later in EX case clause
         end
     end

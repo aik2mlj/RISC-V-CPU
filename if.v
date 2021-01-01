@@ -10,7 +10,7 @@ module InstFetch(
 
     // to MEMCTRL
     output reg if_from_ram_enable_o,
-    output reg[`AddrLen - 1: 0] pc_o,
+    output reg[`AddrLen - 1: 0] pc_memctrl_o,
     output reg pc_jump_enable_o,
 
     // from MEMCTRL: whole word
@@ -23,7 +23,7 @@ module InstFetch(
     output reg inst_ready_o,
 
     // to IF_ID
-    output reg[`AddrLen - 1: 0] next_pc_o, // pc_o + 4, to if_id
+    output reg[`AddrLen - 1: 0] pc_o, // pc_i to IF_ID, also to ID for jump check
     output reg[`InstLen - 1: 0] inst_o // Send to IF_ID
 );
     reg[40: 0] icache[127: 0];
@@ -64,7 +64,7 @@ module InstFetch(
 
     // jump_enable to MEMCTRL
     always @(*) begin
-        pc_o = pc_i;
+        pc_memctrl_o = pc_i;
         // if(if_from_ram_enable_o) begin
         pc_jump_enable_o = pc_jump_enable_i;
         // end
@@ -80,28 +80,28 @@ module InstFetch(
     // to IF_ID
     always @(*) begin
         if(rst) begin
-            next_pc_o = `ZERO_WORD;
+            pc_o = `ZERO_WORD;
             inst_o = `ZERO_WORD;
             // stall_req_o = `Disable;
         end
         else if(icache[pc_i[8: 2]][40: 32] == pc_i[17: 9]) begin // icache hitted
             if(pc_jump_enable_i) begin // if jumped, reset inst
-                next_pc_o = `ZERO_WORD;
+                pc_o = `ZERO_WORD;
                 inst_o = `ZERO_WORD;
             end
             else begin
-                next_pc_o = pc_i;
+                pc_o = pc_i;
                 inst_o = icache[pc_i[8: 2]][31: 0];
             end
             // stall_req_o = `Disable;
         end
         else if(inst_ready_i) begin
-            next_pc_o = pc_i;
+            pc_o = pc_i;
             inst_o = inst_i;
             // stall_req_o = `Disable;
         end
         else begin
-            next_pc_o = `ZERO_WORD;
+            pc_o = `ZERO_WORD;
             inst_o = `ZERO_WORD;
             // stall_req_o = `Enable;
         end
